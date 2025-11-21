@@ -1,1031 +1,754 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quarto 3D</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Quarto 3D — Hotseat</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --bg: #0f172a;
+            --panel: #0b1221;
+            --accent: #22d3ee;
+            --accent-2: #a855f7;
+            --text: #e2e8f0;
+            --muted: #94a3b8;
+            --shadow: rgba(0, 0, 0, 0.45);
+        }
+
         * {
-            margin: 0;
-            padding: 0;
             box-sizing: border-box;
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            margin: 0;
+            background: radial-gradient(circle at 20% 20%, rgba(34, 211, 238, 0.08), transparent 25%),
+                        radial-gradient(circle at 70% 40%, rgba(168, 85, 247, 0.1), transparent 32%),
+                        var(--bg);
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            color: var(--text);
             min-height: 100vh;
-            color: #fff;
             overflow: hidden;
         }
 
-        #game-container {
-            display: flex;
+        .layout {
+            display: grid;
+            grid-template-columns: 420px 1fr;
             height: 100vh;
         }
 
-        #canvas-container {
-            flex: 1;
-            position: relative;
-        }
-
-        #sidebar {
-            width: 320px;
-            background: rgba(0, 0, 0, 0.3);
-            padding: 20px;
+        aside {
+            background: linear-gradient(180deg, rgba(11, 18, 33, 0.95) 0%, rgba(11, 18, 33, 0.85) 100%);
+            border-right: 1px solid rgba(255, 255, 255, 0.06);
+            padding: 24px;
+            box-shadow: 6px 0 20px var(--shadow);
             display: flex;
             flex-direction: column;
-            border-left: 1px solid rgba(255, 255, 255, 0.1);
+            gap: 18px;
         }
 
         h1 {
-            font-size: 2rem;
-            margin-bottom: 10px;
-            background: linear-gradient(90deg, #f39c12, #e74c3c);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        #status {
-            font-size: 1.1rem;
-            padding: 15px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 8px;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-
-        #status.player1 {
-            border-left: 4px solid #3498db;
-        }
-
-        #status.player2 {
-            border-left: 4px solid #e74c3c;
-        }
-
-        #status.win {
-            background: rgba(46, 204, 113, 0.3);
-            border-left: 4px solid #2ecc71;
-        }
-
-        #status.draw {
-            background: rgba(241, 196, 15, 0.3);
-            border-left: 4px solid #f1c40f;
-        }
-
-        #pieces-container {
-            flex: 1;
-            overflow-y: auto;
-        }
-
-        #pieces-container h3 {
-            margin-bottom: 10px;
-            color: #95a5a6;
-            font-size: 0.9rem;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        #available-pieces {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 8px;
-        }
-
-        .piece-btn {
-            aspect-ratio: 1;
-            border: 2px solid rgba(255, 255, 255, 0.2);
-            border-radius: 8px;
-            background: rgba(255, 255, 255, 0.05);
-            cursor: pointer;
-            transition: all 0.3s ease;
+            margin: 0;
+            font-size: 28px;
+            letter-spacing: -0.02em;
             display: flex;
             align-items: center;
-            justify-content: center;
-            position: relative;
-        }
-
-        .piece-btn:hover:not(.used):not(.selected) {
-            border-color: rgba(255, 255, 255, 0.5);
-            background: rgba(255, 255, 255, 0.1);
-            transform: scale(1.05);
-        }
-
-        .piece-btn.selected {
-            border-color: #f39c12;
-            background: rgba(243, 156, 18, 0.2);
-            box-shadow: 0 0 15px rgba(243, 156, 18, 0.5);
-        }
-
-        .piece-btn.used {
-            opacity: 0.3;
-            cursor: not-allowed;
-        }
-
-        .piece-preview {
-            width: 100%;
-            height: 100%;
-        }
-
-        #selected-piece {
-            margin-top: 20px;
-            padding: 15px;
-            background: rgba(243, 156, 18, 0.1);
-            border: 1px solid rgba(243, 156, 18, 0.3);
-            border-radius: 8px;
-            text-align: center;
-            display: none;
-        }
-
-        #selected-piece.visible {
-            display: block;
-        }
-
-        #selected-piece h3 {
-            color: #f39c12;
-            margin-bottom: 10px;
-        }
-
-        .piece-attributes {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 5px;
-            justify-content: center;
-        }
-
-        .attribute {
-            font-size: 0.75rem;
-            padding: 3px 8px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 4px;
-        }
-
-        #controls {
-            margin-top: 20px;
-            display: flex;
             gap: 10px;
         }
 
-        button {
-            flex: 1;
-            padding: 12px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 0.9rem;
-            font-weight: 600;
-            transition: all 0.3s ease;
+        h1 span {
+            display: inline-flex;
+            padding: 8px 12px;
+            border-radius: 12px;
+            background: linear-gradient(120deg, rgba(34, 211, 238, 0.15), rgba(168, 85, 247, 0.15));
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: #cbd5f5;
         }
 
-        #reset-btn {
-            background: linear-gradient(135deg, #e74c3c, #c0392b);
-            color: white;
+        .status {
+            padding: 16px;
+            border-radius: 14px;
+            background: linear-gradient(145deg, rgba(34, 211, 238, 0.12), rgba(10, 12, 24, 0.9));
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
         }
 
-        #reset-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(231, 76, 60, 0.4);
+        .status .label {
+            color: var(--muted);
+            font-size: 13px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
         }
 
-        #confirm-btn {
-            background: linear-gradient(135deg, #2ecc71, #27ae60);
-            color: white;
-        }
-
-        #confirm-btn:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(46, 204, 113, 0.4);
-        }
-
-        #confirm-btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        #instructions {
-            margin-top: 20px;
-            padding: 15px;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 8px;
-            font-size: 0.85rem;
-            color: #95a5a6;
-        }
-
-        #instructions h4 {
-            color: #fff;
-            margin-bottom: 8px;
-        }
-
-        #instructions ul {
-            padding-left: 20px;
-        }
-
-        #instructions li {
-            margin-bottom: 5px;
-        }
-
-        .winner-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.8);
+        .status .value {
+            font-size: 20px;
+            margin-top: 6px;
+            font-weight: 700;
             display: flex;
             align-items: center;
-            justify-content: center;
-            z-index: 1000;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.5s ease;
+            gap: 10px;
         }
 
-        .winner-overlay.visible {
-            opacity: 1;
-            pointer-events: auto;
+        .status .dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--accent);
+            box-shadow: 0 0 12px rgba(34, 211, 238, 0.8);
         }
 
-        .winner-content {
+        .phase {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .pill {
+            padding: 10px 12px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            border-radius: 12px;
+            color: var(--muted);
             text-align: center;
-            padding: 40px;
-            background: linear-gradient(135deg, rgba(46, 204, 113, 0.2), rgba(39, 174, 96, 0.2));
-            border: 2px solid #2ecc71;
-            border-radius: 20px;
-            transform: scale(0.8);
-            transition: transform 0.5s ease;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 0.02em;
         }
 
-        .winner-overlay.visible .winner-content {
-            transform: scale(1);
+        .pill.active {
+            background: linear-gradient(120deg, rgba(34, 211, 238, 0.18), rgba(168, 85, 247, 0.18));
+            color: #e0f2fe;
+            border-color: rgba(34, 211, 238, 0.25);
+            box-shadow: 0 4px 16px rgba(34, 211, 238, 0.3);
         }
 
-        .winner-content h2 {
-            font-size: 3rem;
-            margin-bottom: 20px;
-            background: linear-gradient(90deg, #2ecc71, #f39c12);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+        .piece-panel {
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 18px;
+            padding: 14px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            box-shadow: 0 10px 30px var(--shadow);
         }
 
-        .winner-content p {
-            font-size: 1.2rem;
-            margin-bottom: 30px;
-            color: #95a5a6;
+        .piece-panel h2 {
+            margin: 0 0 10px;
+            font-size: 16px;
+            color: #e2e8f0;
+            letter-spacing: 0.01em;
         }
 
-        .winner-content button {
-            padding: 15px 40px;
-            font-size: 1.1rem;
+        #selected-piece {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .piece-badge {
+            background: linear-gradient(120deg, rgba(34, 211, 238, 0.2), rgba(168, 85, 247, 0.25));
+            border-radius: 14px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .piece-badge .code {
+            font-weight: 700;
+            font-size: 18px;
+        }
+
+        .attributes {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .attribute {
+            padding: 6px 10px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 8px;
+        }
+
+        button.piece-card {
+            position: relative;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 12px;
+            padding: 12px;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            color: var(--text);
+            transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
+        }
+
+        button.piece-card:disabled {
+            opacity: 0.35;
+            cursor: not-allowed;
+        }
+
+        button.piece-card:hover:not(:disabled) {
+            transform: translateY(-2px);
+            border-color: rgba(34, 211, 238, 0.5);
+            background: rgba(255, 255, 255, 0.06);
+        }
+
+        button.piece-card.selected {
+            border-color: rgba(168, 85, 247, 0.7);
+            box-shadow: 0 8px 22px rgba(168, 85, 247, 0.35);
+        }
+
+        .piece-shape {
+            width: 100%;
+            height: 60px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, rgba(34, 211, 238, 0.16), rgba(168, 85, 247, 0.16));
+            display: grid;
+            place-items: center;
+            position: relative;
+        }
+
+        .shape-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            display: grid;
+            place-items: center;
+            font-weight: 700;
+        }
+
+        .shape-icon.round {
+            border-radius: 50%;
+        }
+
+        .tags {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .tag {
+            padding: 5px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--muted);
+        }
+
+        .legend {
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            padding-top: 12px;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .rules {
+            font-size: 13px;
+            line-height: 1.5;
+            color: var(--muted);
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 12px;
+            padding: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 6px;
+        }
+
+        .button {
+            padding: 10px 12px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(34, 211, 238, 0.12);
+            color: #e0f2fe;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 120ms ease, box-shadow 120ms ease;
+        }
+
+        .button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 18px rgba(34, 211, 238, 0.3);
+        }
+
+        .scene-wrap {
+            position: relative;
+            overflow: hidden;
+        }
+
+        canvas#scene {
+            width: 100%;
+            height: 100%;
+            display: block;
+            background: radial-gradient(circle at 50% 30%, rgba(34, 211, 238, 0.15), transparent 40%),
+                        radial-gradient(circle at 20% 60%, rgba(168, 85, 247, 0.15), transparent 45%),
+                        #05060f;
+        }
+
+        .toast {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            padding: 12px 14px;
+            background: rgba(14, 165, 233, 0.14);
+            border: 1px solid rgba(34, 211, 238, 0.3);
+            border-radius: 12px;
+            color: #e0f2fe;
+            font-weight: 600;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+            max-width: 360px;
+            line-height: 1.4;
+        }
+
+        @media (max-width: 1100px) {
+            .layout {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto 1fr;
+            }
+
+            aside {
+                max-height: 420px;
+                overflow-y: auto;
+            }
         }
     </style>
 </head>
 <body>
-    <div id="game-container">
-        <div id="canvas-container"></div>
-        <div id="sidebar">
-            <h1>QUARTO</h1>
-            <div id="status" class="player1">Player 1: Select a piece for Player 2</div>
+    <div class="layout">
+        <aside>
+            <h1>
+                Quarto 3D
+                <span>Hotseat</span>
+            </h1>
 
-            <div id="pieces-container">
-                <h3>Available Pieces</h3>
-                <div id="available-pieces"></div>
+            <div class="status">
+                <div class="label">Active player</div>
+                <div class="value"><span class="dot" id="player-dot"></span><span id="player-label"></span></div>
             </div>
 
-            <div id="selected-piece">
-                <h3>Selected Piece</h3>
-                <div class="piece-attributes" id="piece-attributes"></div>
+            <div class="phase">
+                <div class="pill" id="phase-pick">Choose a piece for your opponent</div>
+                <div class="pill" id="phase-place">Place the given piece</div>
             </div>
 
-            <div id="controls">
-                <button id="reset-btn">New Game</button>
-                <button id="confirm-btn" disabled>Confirm</button>
+            <div class="piece-panel">
+                <h2>Piece in hand</h2>
+                <div id="selected-piece"></div>
             </div>
 
-            <div id="instructions">
-                <h4>How to Play</h4>
+            <div class="piece-panel">
+                <h2>Available pieces</h2>
+                <div class="grid" id="piece-grid"></div>
+                <div class="legend">Players alternate picking a piece for the other player to place on the 4×4 board. Align four sharing <strong>any</strong> attribute to declare Quarto.</div>
+            </div>
+
+            <div class="rules">
+                <strong>Quick rules</strong>
                 <ul>
-                    <li>Select a piece for your opponent</li>
-                    <li>Your opponent places it on the board</li>
-                    <li>Get 4 in a row with a shared trait to win!</li>
-                    <li>Traits: Tall/Short, Light/Dark, Round/Square, Solid/Hollow</li>
+                    <li>Pieces have four binary attributes: tall/short, light/dark, round/square, solid/hollow.</li>
+                    <li>On your turn, pick <em>one</em> unused piece to hand to your opponent.</li>
+                    <li>Your opponent must place that piece on any empty square.</li>
+                    <li>Four in a line sharing any attribute wins instantly. If all pieces are placed with no line, it's a draw.</li>
                 </ul>
+                <div class="actions">
+                    <button class="button" id="reset">Restart game</button>
+                </div>
             </div>
-        </div>
+        </aside>
+        <section class="scene-wrap">
+            <canvas id="scene"></canvas>
+            <div class="toast" id="toast" style="display: none;"></div>
+        </section>
     </div>
 
-    <div class="winner-overlay" id="winner-overlay">
-        <div class="winner-content">
-            <h2 id="winner-text">QUARTO!</h2>
-            <p id="winner-desc">Player 1 wins!</p>
-            <button onclick="resetGame()">Play Again</button>
-        </div>
-    </div>
+    <script type="module">
+        import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js';
+        import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/controls/OrbitControls.js';
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script>
-        // Game State
-        const PIECE_ATTRIBUTES = {
-            TALL: 0,
-            LIGHT: 1,
-            ROUND: 2,
-            SOLID: 3
-        };
+        const pieceGrid = document.getElementById('piece-grid');
+        const selectedPieceEl = document.getElementById('selected-piece');
+        const statusPlayer = document.getElementById('player-label');
+        const statusDot = document.getElementById('player-dot');
+        const phasePick = document.getElementById('phase-pick');
+        const phasePlace = document.getElementById('phase-place');
+        const toast = document.getElementById('toast');
 
-        let gameState = {
-            board: Array(16).fill(null), // 4x4 board
-            usedPieces: new Set(),
-            currentPlayer: 1,
-            phase: 'select', // 'select' or 'place'
-            selectedPiece: null,
-            gameOver: false,
-            winner: null
-        };
+        const canvas = document.getElementById('scene');
+        const scene = new THREE.Scene();
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+        renderer.setPixelRatio(devicePixelRatio);
 
-        // Three.js variables
-        let scene, camera, renderer, raycaster, mouse;
-        let boardGroup, piecesOnBoard = [];
-        let boardSquares = [];
-        let highlightedSquare = null;
-        let floatingPiece = null;
+        const camera = new THREE.PerspectiveCamera(45, canvas.clientWidth / canvas.clientHeight, 0.1, 100);
+        camera.position.set(10, 12, 12);
 
-        // Colors
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.target.set(0, 0, 0);
+        controls.enableDamping = true;
+        controls.maxPolarAngle = Math.PI / 2.1;
+
+        scene.add(new THREE.AmbientLight(0xffffff, 0.65));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.85);
+        dirLight.position.set(6, 14, 8);
+        scene.add(dirLight);
+
+        const boardGroup = new THREE.Group();
+        scene.add(boardGroup);
+
+        const boardSquares = [];
+        const placedMeshes = new Array(16).fill(null);
+
         const COLORS = {
-            board: 0x2c3e50,
-            boardLight: 0x34495e,
-            boardDark: 0x2c3e50,
-            pieceLight: 0xecf0f1,
-            pieceDark: 0x8b4513,
-            highlight: 0xf39c12,
-            valid: 0x2ecc71
+            boardLight: new THREE.Color('#1f2937'),
+            boardDark: new THREE.Color('#111827'),
+            highlight: new THREE.Color('#22d3ee'),
+            block: new THREE.Color('#0b1221'),
         };
 
-        // Initialize the game
-        function init() {
-            initThreeJS();
-            createBoard();
-            createPieceButtons();
-            setupEventListeners();
-            animate();
-            updateStatus();
-        }
+        const PIECES = Array.from({ length: 16 }, (_, i) => ({
+            id: i,
+            tall: Boolean(i & 1),
+            dark: Boolean(i & 2),
+            square: Boolean(i & 4),
+            hollow: Boolean(i & 8),
+        }));
 
-        function initThreeJS() {
-            const container = document.getElementById('canvas-container');
+        const state = {
+            activePlayer: 0,
+            phase: 'pick',
+            handPiece: null,
+            board: Array(16).fill(null),
+            winner: null,
+        };
 
-            scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x1a1a2e);
+        const lines = [
+            [0, 1, 2, 3],
+            [4, 5, 6, 7],
+            [8, 9, 10, 11],
+            [12, 13, 14, 15],
+            [0, 4, 8, 12],
+            [1, 5, 9, 13],
+            [2, 6, 10, 14],
+            [3, 7, 11, 15],
+            [0, 5, 10, 15],
+            [3, 6, 9, 12],
+        ];
 
-            camera = new THREE.PerspectiveCamera(
-                45,
-                container.clientWidth / container.clientHeight,
-                0.1,
-                1000
-            );
-            camera.position.set(8, 12, 8);
-            camera.lookAt(0, 0, 0);
-
-            renderer = new THREE.WebGLRenderer({ antialias: true });
-            renderer.setSize(container.clientWidth, container.clientHeight);
-            renderer.shadowMap.enabled = true;
-            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-            container.appendChild(renderer.domElement);
-
-            // Lighting
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-            scene.add(ambientLight);
-
-            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-            directionalLight.position.set(10, 20, 10);
-            directionalLight.castShadow = true;
-            directionalLight.shadow.mapSize.width = 2048;
-            directionalLight.shadow.mapSize.height = 2048;
-            directionalLight.shadow.camera.near = 0.5;
-            directionalLight.shadow.camera.far = 50;
-            directionalLight.shadow.camera.left = -10;
-            directionalLight.shadow.camera.right = 10;
-            directionalLight.shadow.camera.top = 10;
-            directionalLight.shadow.camera.bottom = -10;
-            scene.add(directionalLight);
-
-            const pointLight = new THREE.PointLight(0xf39c12, 0.3);
-            pointLight.position.set(-5, 10, -5);
-            scene.add(pointLight);
-
-            raycaster = new THREE.Raycaster();
-            mouse = new THREE.Vector2();
-
-            // Handle resize
-            window.addEventListener('resize', () => {
-                camera.aspect = container.clientWidth / container.clientHeight;
+        function resizeRenderer() {
+            const { clientWidth, clientHeight } = canvas;
+            if (canvas.width !== clientWidth || canvas.height !== clientHeight) {
+                renderer.setSize(clientWidth, clientHeight, false);
+                camera.aspect = clientWidth / clientHeight;
                 camera.updateProjectionMatrix();
-                renderer.setSize(container.clientWidth, container.clientHeight);
-            });
+            }
         }
 
-        function createBoard() {
-            boardGroup = new THREE.Group();
-
-            // Board base
-            const baseGeometry = new THREE.BoxGeometry(9, 0.5, 9);
-            const baseMaterial = new THREE.MeshStandardMaterial({
-                color: COLORS.board,
-                roughness: 0.8,
-                metalness: 0.2
-            });
-            const base = new THREE.Mesh(baseGeometry, baseMaterial);
-            base.position.y = -0.25;
-            base.receiveShadow = true;
+        function buildBoard() {
+            const tile = new THREE.PlaneGeometry(2, 2);
+            const padding = 0.08;
+            const boardBase = new THREE.BoxGeometry(9.4, 0.5, 9.4);
+            const base = new THREE.Mesh(boardBase, new THREE.MeshStandardMaterial({
+                color: '#0b0f1c', metalness: 0.1, roughness: 0.55,
+            }));
+            base.position.y = -0.35;
             boardGroup.add(base);
 
-            // Board frame
-            const frameGeometry = new THREE.BoxGeometry(9.5, 0.6, 9.5);
-            const frameMaterial = new THREE.MeshStandardMaterial({
-                color: 0x1a1a2e,
-                roughness: 0.9,
-                metalness: 0.1
-            });
-            const frame = new THREE.Mesh(frameGeometry, frameMaterial);
-            frame.position.y = -0.35;
-            frame.receiveShadow = true;
-            boardGroup.add(frame);
-
-            // Create squares
-            for (let row = 0; row < 4; row++) {
-                for (let col = 0; col < 4; col++) {
-                    const isLight = (row + col) % 2 === 0;
-                    const squareGeometry = new THREE.BoxGeometry(1.9, 0.1, 1.9);
-                    const squareMaterial = new THREE.MeshStandardMaterial({
-                        color: isLight ? COLORS.boardLight : COLORS.boardDark,
+            for (let r = 0; r < 4; r++) {
+                for (let c = 0; c < 4; c++) {
+                    const even = (r + c) % 2 === 0;
+                    const mat = new THREE.MeshStandardMaterial({
+                        color: even ? COLORS.boardLight : COLORS.boardDark,
                         roughness: 0.7,
-                        metalness: 0.1
+                        metalness: 0.2,
+                        side: THREE.DoubleSide,
                     });
-                    const square = new THREE.Mesh(squareGeometry, squareMaterial);
-
-                    const x = (col - 1.5) * 2;
-                    const z = (row - 1.5) * 2;
-                    square.position.set(x, 0.05, z);
-                    square.receiveShadow = true;
-
-                    square.userData = {
-                        row: row,
-                        col: col,
-                        index: row * 4 + col,
-                        originalColor: squareMaterial.color.getHex()
-                    };
-
-                    boardSquares.push(square);
-                    boardGroup.add(square);
+                    const mesh = new THREE.Mesh(tile, mat);
+                    mesh.rotateX(-Math.PI / 2);
+                    mesh.position.set((c - 1.5) * (2 + padding), 0, (r - 1.5) * (2 + padding));
+                    mesh.userData.index = r * 4 + c;
+                    mesh.userData.baseColor = mat.color.clone();
+                    boardGroup.add(mesh);
+                    boardSquares.push(mesh);
                 }
             }
 
-            scene.add(boardGroup);
+            const gridLines = new THREE.LineSegments(
+                new THREE.EdgesGeometry(new THREE.BoxGeometry(8.4, 0.1, 8.4)),
+                new THREE.LineBasicMaterial({ color: '#334155', transparent: true, opacity: 0.7 })
+            );
+            gridLines.position.y = 0.02;
+            boardGroup.add(gridLines);
         }
 
-        function createPieceMesh(pieceIndex, scale = 1) {
-            const attributes = getPieceAttributes(pieceIndex);
-            const group = new THREE.Group();
-
-            const isTall = attributes.tall;
-            const isLight = attributes.light;
-            const isRound = attributes.round;
-            const isSolid = attributes.solid;
-
-            const height = isTall ? 1.8 : 1.0;
-            const radius = 0.35;
-
-            const color = isLight ? COLORS.pieceLight : COLORS.pieceDark;
-            const material = new THREE.MeshStandardMaterial({
-                color: color,
-                roughness: 0.4,
-                metalness: 0.3
-            });
+        function createPieceMesh(attrs) {
+            const height = attrs.tall ? 1.4 : 0.9;
+            const radius = 0.45;
+            const materialColor = attrs.dark ? '#7c3a13' : '#f3e9d2';
+            const accentColor = attrs.dark ? '#fb923c' : '#0ea5e9';
 
             let geometry;
-            if (isRound) {
-                if (isSolid) {
-                    geometry = new THREE.CylinderGeometry(radius, radius, height, 32);
-                } else {
-                    // Hollow cylinder (tube)
-                    const outerRadius = radius;
-                    const innerRadius = radius * 0.6;
-                    const shape = new THREE.Shape();
-                    shape.absarc(0, 0, outerRadius, 0, Math.PI * 2, false);
-                    const hole = new THREE.Path();
-                    hole.absarc(0, 0, innerRadius, 0, Math.PI * 2, true);
-                    shape.holes.push(hole);
-
-                    const extrudeSettings = {
-                        depth: height,
-                        bevelEnabled: false
-                    };
-                    geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
-                    geometry.rotateX(-Math.PI / 2);
-                    geometry.translate(0, height / 2, 0);
-                }
+            if (attrs.square) {
+                geometry = new THREE.BoxGeometry(radius * 1.8, height, radius * 1.8);
             } else {
-                // Square piece
-                const size = radius * 1.6;
-                if (isSolid) {
-                    geometry = new THREE.BoxGeometry(size, height, size);
-                } else {
-                    // Hollow square
-                    const outer = size;
-                    const inner = size * 0.5;
-                    const shape = new THREE.Shape();
-                    shape.moveTo(-outer/2, -outer/2);
-                    shape.lineTo(outer/2, -outer/2);
-                    shape.lineTo(outer/2, outer/2);
-                    shape.lineTo(-outer/2, outer/2);
-                    shape.lineTo(-outer/2, -outer/2);
-
-                    const hole = new THREE.Path();
-                    hole.moveTo(-inner/2, -inner/2);
-                    hole.lineTo(-inner/2, inner/2);
-                    hole.lineTo(inner/2, inner/2);
-                    hole.lineTo(inner/2, -inner/2);
-                    hole.lineTo(-inner/2, -inner/2);
-                    shape.holes.push(hole);
-
-                    const extrudeSettings = {
-                        depth: height,
-                        bevelEnabled: false
-                    };
-                    geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
-                    geometry.rotateX(-Math.PI / 2);
-                    geometry.translate(0, height / 2, 0);
-                }
+                geometry = new THREE.CylinderGeometry(radius, radius, height, 24);
             }
+
+            const material = new THREE.MeshStandardMaterial({
+                color: materialColor,
+                roughness: attrs.hollow ? 0.25 : 0.55,
+                metalness: attrs.hollow ? 0.55 : 0.2,
+                transparent: attrs.hollow,
+                opacity: attrs.hollow ? 0.55 : 1,
+            });
 
             const mesh = new THREE.Mesh(geometry, material);
             mesh.castShadow = true;
             mesh.receiveShadow = true;
 
-            group.add(mesh);
-            group.scale.set(scale, scale, scale);
+            const capGeom = attrs.square
+                ? new THREE.BoxGeometry(radius * 1.5, 0.15, radius * 1.5)
+                : new THREE.CylinderGeometry(radius * 0.8, radius * 0.8, 0.15, 24);
+            const cap = new THREE.Mesh(capGeom, new THREE.MeshStandardMaterial({ color: accentColor, roughness: 0.35 }));
+            cap.position.y = height / 2;
+            mesh.add(cap);
 
-            return group;
+            return mesh;
         }
 
-        function getPieceAttributes(index) {
-            return {
-                tall: !!(index & 8),
-                light: !!(index & 4),
-                round: !!(index & 2),
-                solid: !!(index & 1)
-            };
-        }
-
-        function getAttributeLabels(index) {
-            const attrs = getPieceAttributes(index);
-            return [
-                attrs.tall ? 'Tall' : 'Short',
-                attrs.light ? 'Light' : 'Dark',
-                attrs.round ? 'Round' : 'Square',
-                attrs.solid ? 'Solid' : 'Hollow'
+        function renderPieceBadge(piece) {
+            if (!piece) {
+                selectedPieceEl.innerHTML = '<div class="muted">No piece selected. Pick one to hand to your opponent.</div>';
+                return;
+            }
+            const tags = [
+                piece.tall ? 'Tall' : 'Short',
+                piece.dark ? 'Dark' : 'Light',
+                piece.square ? 'Square' : 'Round',
+                piece.hollow ? 'Hollow' : 'Solid',
             ];
+            selectedPieceEl.innerHTML = `
+                <div class="piece-badge">
+                    <div class="code">Piece ${piece.id.toString(16).toUpperCase()}</div>
+                    <div class="attributes">${tags.map(t => `<span class="attribute">${t}</span>`).join('')}</div>
+                </div>
+                <div class="piece-badge" style="background:rgba(255,255,255,0.04)">
+                    <div class="label">Action</div>
+                    <div>${state.phase === 'place' ? 'Place this piece on any empty square.' : 'Pick a piece for your opponent to place.'}</div>
+                </div>
+            `;
         }
 
-        function createPieceButtons() {
-            const container = document.getElementById('available-pieces');
-            container.innerHTML = '';
+        function renderPieces() {
+            pieceGrid.innerHTML = '';
+            PIECES.forEach((p) => {
+                const btn = document.createElement('button');
+                btn.className = 'piece-card';
+                btn.dataset.id = p.id;
+                btn.disabled = state.board.includes(p.id);
 
-            for (let i = 0; i < 16; i++) {
-                const btn = document.createElement('div');
-                btn.className = 'piece-btn';
-                btn.dataset.piece = i;
+                const shapeIcon = p.square ? '▢' : '◯';
+                const tags = [p.tall ? 'Tall' : 'Short', p.dark ? 'Dark' : 'Light', p.square ? 'Square' : 'Round', p.hollow ? 'Hollow' : 'Solid'];
 
-                if (gameState.usedPieces.has(i)) {
-                    btn.classList.add('used');
-                }
+                btn.innerHTML = `
+                    <div class="piece-shape">
+                        <div class="shape-icon ${p.square ? '' : 'round'}">${shapeIcon}</div>
+                    </div>
+                    <div class="tags">${tags.map(t => `<span class="tag">${t}</span>`).join('')}</div>
+                `;
 
-                if (gameState.selectedPiece === i) {
+                btn.addEventListener('click', () => {
+                    if (state.phase !== 'pick' || state.winner) return;
+                    if (btn.disabled) return;
+                    state.handPiece = p.id;
+                    state.phase = 'place';
+                    state.activePlayer = 1 - state.activePlayer;
+                    render();
+                });
+
+                if (state.handPiece === p.id && state.phase === 'place') {
                     btn.classList.add('selected');
                 }
 
-                // Create mini 3D preview
-                const canvas = document.createElement('canvas');
-                canvas.className = 'piece-preview';
-                canvas.width = 60;
-                canvas.height = 60;
-                btn.appendChild(canvas);
-
-                renderPiecePreview(canvas, i);
-
-                btn.addEventListener('click', () => selectPiece(i));
-                container.appendChild(btn);
-            }
-        }
-
-        function renderPiecePreview(canvas, pieceIndex) {
-            const miniScene = new THREE.Scene();
-            miniScene.background = new THREE.Color(0x2c3e50);
-
-            const miniCamera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
-            miniCamera.position.set(2, 2, 2);
-            miniCamera.lookAt(0, 0.5, 0);
-
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-            miniScene.add(ambientLight);
-
-            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-            directionalLight.position.set(2, 3, 2);
-            miniScene.add(directionalLight);
-
-            const piece = createPieceMesh(pieceIndex, 1);
-            miniScene.add(piece);
-
-            const miniRenderer = new THREE.WebGLRenderer({
-                canvas: canvas,
-                antialias: true,
-                alpha: true
+                pieceGrid.appendChild(btn);
             });
-            miniRenderer.setSize(60, 60);
-            miniRenderer.render(miniScene, miniCamera);
-            miniRenderer.dispose();
         }
 
-        function selectPiece(pieceIndex) {
-            if (gameState.gameOver) return;
-            if (gameState.phase !== 'select') return;
-            if (gameState.usedPieces.has(pieceIndex)) return;
-
-            gameState.selectedPiece = pieceIndex;
-
-            // Update UI
-            document.querySelectorAll('.piece-btn').forEach(btn => {
-                btn.classList.remove('selected');
-                if (parseInt(btn.dataset.piece) === pieceIndex) {
-                    btn.classList.add('selected');
-                }
-            });
-
-            // Show selected piece info
-            const selectedDiv = document.getElementById('selected-piece');
-            selectedDiv.classList.add('visible');
-
-            const attrsDiv = document.getElementById('piece-attributes');
-            attrsDiv.innerHTML = getAttributeLabels(pieceIndex)
-                .map(attr => `<span class="attribute">${attr}</span>`)
-                .join('');
-
-            document.getElementById('confirm-btn').disabled = false;
-        }
-
-        function confirmSelection() {
-            if (gameState.selectedPiece === null) return;
-
-            if (gameState.phase === 'select') {
-                // Move to place phase
-                gameState.phase = 'place';
-                gameState.currentPlayer = gameState.currentPlayer === 1 ? 2 : 1;
-
-                // Create floating piece
-                createFloatingPiece(gameState.selectedPiece);
-
-                document.getElementById('confirm-btn').disabled = true;
-                updateStatus();
-            }
-        }
-
-        function createFloatingPiece(pieceIndex) {
-            if (floatingPiece) {
-                scene.remove(floatingPiece);
-            }
-
-            floatingPiece = createPieceMesh(pieceIndex);
-            floatingPiece.position.set(0, 5, 0);
-            floatingPiece.userData.pieceIndex = pieceIndex;
-            scene.add(floatingPiece);
-        }
-
-        function placePiece(boardIndex) {
-            if (gameState.gameOver) return;
-            if (gameState.phase !== 'place') return;
-            if (gameState.board[boardIndex] !== null) return;
-            if (gameState.selectedPiece === null) return;
-
-            const row = Math.floor(boardIndex / 4);
-            const col = boardIndex % 4;
-            const x = (col - 1.5) * 2;
-            const z = (row - 1.5) * 2;
-
-            // Place the piece
-            gameState.board[boardIndex] = gameState.selectedPiece;
-            gameState.usedPieces.add(gameState.selectedPiece);
-
-            // Create piece on board
-            const piece = createPieceMesh(gameState.selectedPiece);
-            const attrs = getPieceAttributes(gameState.selectedPiece);
-            const height = attrs.tall ? 0.9 : 0.5;
-            piece.position.set(x, height, z);
-            piece.userData.boardIndex = boardIndex;
-            scene.add(piece);
-            piecesOnBoard.push(piece);
-
-            // Remove floating piece
-            if (floatingPiece) {
-                scene.remove(floatingPiece);
-                floatingPiece = null;
-            }
-
-            // Check for win
-            const winResult = checkWin();
-            if (winResult) {
-                gameState.gameOver = true;
-                gameState.winner = gameState.currentPlayer;
-                showWinner(winResult);
-            } else if (gameState.usedPieces.size === 16) {
-                gameState.gameOver = true;
-                showDraw();
-            } else {
-                // Next turn
-                gameState.phase = 'select';
-                gameState.selectedPiece = null;
-            }
-
-            // Update UI
-            createPieceButtons();
-            document.getElementById('selected-piece').classList.remove('visible');
-            document.getElementById('confirm-btn').disabled = true;
-            updateStatus();
-        }
-
-        function checkWin() {
-            const lines = [
-                // Rows
-                [0, 1, 2, 3],
-                [4, 5, 6, 7],
-                [8, 9, 10, 11],
-                [12, 13, 14, 15],
-                // Columns
-                [0, 4, 8, 12],
-                [1, 5, 9, 13],
-                [2, 6, 10, 14],
-                [3, 7, 11, 15],
-                // Diagonals
-                [0, 5, 10, 15],
-                [3, 6, 9, 12]
-            ];
-
-            for (const line of lines) {
-                const pieces = line.map(i => gameState.board[i]);
-                if (pieces.every(p => p !== null)) {
-                    // Check each attribute
-                    for (let attr = 0; attr < 4; attr++) {
-                        const bit = 1 << (3 - attr);
-                        const allHave = pieces.every(p => (p & bit) !== 0);
-                        const noneHave = pieces.every(p => (p & bit) === 0);
-
-                        if (allHave || noneHave) {
-                            return {
-                                line: line,
-                                attribute: ['Tall/Short', 'Light/Dark', 'Round/Square', 'Solid/Hollow'][attr],
-                                value: allHave ?
-                                    ['Tall', 'Light', 'Round', 'Solid'][attr] :
-                                    ['Short', 'Dark', 'Square', 'Hollow'][attr]
-                            };
-                        }
-                    }
-                }
-            }
-
-            return null;
-        }
-
-        function showWinner(winResult) {
-            const overlay = document.getElementById('winner-overlay');
-            const text = document.getElementById('winner-text');
-            const desc = document.getElementById('winner-desc');
-
-            text.textContent = 'QUARTO!';
-            desc.textContent = `Player ${gameState.winner} wins! Four ${winResult.value} pieces in a row!`;
-
-            overlay.classList.add('visible');
-
-            // Highlight winning pieces
-            highlightWinningLine(winResult.line);
-
-            document.getElementById('status').className = 'win';
-            document.getElementById('status').textContent = `Player ${gameState.winner} wins!`;
-        }
-
-        function showDraw() {
-            const overlay = document.getElementById('winner-overlay');
-            const text = document.getElementById('winner-text');
-            const desc = document.getElementById('winner-desc');
-
-            text.textContent = 'DRAW!';
-            desc.textContent = 'All pieces placed with no winner.';
-
-            overlay.classList.add('visible');
-
-            document.getElementById('status').className = 'draw';
-            document.getElementById('status').textContent = 'Game ended in a draw!';
-        }
-
-        function highlightWinningLine(line) {
-            line.forEach(index => {
-                const square = boardSquares[index];
-                if (square) {
-                    square.material.color.setHex(COLORS.valid);
-                    square.material.emissive = new THREE.Color(COLORS.valid);
-                    square.material.emissiveIntensity = 0.3;
-                }
-            });
+        function showToast(message) {
+            toast.textContent = message;
+            toast.style.display = 'block';
+            toast.style.opacity = '1';
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => (toast.style.display = 'none'), 400);
+            }, 1600);
         }
 
         function updateStatus() {
-            const status = document.getElementById('status');
+            statusPlayer.textContent = `Player ${state.activePlayer + 1}`;
+            statusDot.style.background = state.activePlayer === 0 ? 'var(--accent)' : 'var(--accent-2)';
+            statusDot.style.boxShadow = state.activePlayer === 0
+                ? '0 0 12px rgba(34, 211, 238, 0.7)'
+                : '0 0 12px rgba(168, 85, 247, 0.7)';
 
-            if (gameState.gameOver) return;
+            phasePick.classList.toggle('active', state.phase === 'pick');
+            phasePlace.classList.toggle('active', state.phase === 'place');
 
-            status.className = `player${gameState.currentPlayer}`;
-
-            if (gameState.phase === 'select') {
-                const nextPlayer = gameState.currentPlayer === 1 ? 2 : 1;
-                status.textContent = `Player ${gameState.currentPlayer}: Select a piece for Player ${nextPlayer}`;
-            } else {
-                status.textContent = `Player ${gameState.currentPlayer}: Place the piece on the board`;
-            }
+            const piece = PIECES.find((p) => p.id === state.handPiece);
+            renderPieceBadge(piece || null);
         }
 
-        function resetGame() {
-            // Reset game state
-            gameState = {
-                board: Array(16).fill(null),
-                usedPieces: new Set(),
-                currentPlayer: 1,
-                phase: 'select',
-                selectedPiece: null,
-                gameOver: false,
-                winner: null
-            };
+        function checkLineWin(indices) {
+            const pieces = indices.map((i) => state.board[i]);
+            if (pieces.includes(null)) return false;
+            const attrs = ['tall', 'dark', 'square', 'hollow'];
+            return attrs.some((key) => {
+                const first = PIECES.find((p) => p.id === pieces[0])[key];
+                return pieces.every((id) => PIECES.find((p) => p.id === id)[key] === first);
+            });
+        }
 
-            // Remove pieces from board
-            piecesOnBoard.forEach(piece => scene.remove(piece));
-            piecesOnBoard = [];
+        function checkWinner() {
+            for (const line of lines) {
+                if (checkLineWin(line)) return line;
+            }
+            return null;
+        }
 
-            // Remove floating piece
-            if (floatingPiece) {
-                scene.remove(floatingPiece);
-                floatingPiece = null;
+        function placePiece(index) {
+            if (state.phase !== 'place' || state.winner) return;
+            if (state.board[index] !== null) return;
+            if (state.handPiece === null) return;
+
+            const piece = PIECES.find((p) => p.id === state.handPiece);
+            const mesh = createPieceMesh(piece);
+            const tile = boardSquares[index];
+            mesh.position.set(tile.position.x, piece.tall ? 0.7 : 0.5, tile.position.z);
+            mesh.userData.pieceId = piece.id;
+            boardGroup.add(mesh);
+            placedMeshes[index] = mesh;
+
+            state.board[index] = piece.id;
+            state.handPiece = null;
+
+            const winningLine = checkWinner();
+            if (winningLine) {
+                state.winner = state.activePlayer;
+                highlightWin(winningLine);
+                showToast(`Quarto! Player ${state.winner + 1} wins.`);
+            } else if (state.board.every((p) => p !== null)) {
+                state.winner = 'draw';
+                showToast('Draw — all 16 pieces placed.');
+            } else {
+                state.phase = 'pick';
+                state.activePlayer = 1 - state.activePlayer;
+                showToast(`Player ${state.activePlayer + 1}, pick a piece for your opponent.`);
             }
 
-            // Reset board squares
-            boardSquares.forEach(square => {
-                square.material.color.setHex(square.userData.originalColor);
-                square.material.emissive = new THREE.Color(0x000000);
-                square.material.emissiveIntensity = 0;
+            render();
+        }
+
+        function highlightWin(indices) {
+            indices.forEach((idx) => {
+                const mesh = placedMeshes[idx];
+                if (!mesh) return;
+                mesh.add(new THREE.PointLight(0x22d3ee, 0.4, 4));
+                mesh.material.emissive = new THREE.Color('#22d3ee');
+                mesh.material.emissiveIntensity = 0.4;
             });
+        }
 
-            // Hide overlay
-            document.getElementById('winner-overlay').classList.remove('visible');
+        function resetBoard() {
+            state.board.fill(null);
+            state.activePlayer = 0;
+            state.phase = 'pick';
+            state.handPiece = null;
+            state.winner = null;
+            placedMeshes.forEach((mesh, i) => {
+                if (mesh) {
+                    boardGroup.remove(mesh);
+                    mesh.geometry.dispose();
+                }
+                placedMeshes[i] = null;
+            });
+            boardSquares.forEach((sq) => sq.material.color.copy(sq.userData.baseColor));
+            render();
+            showToast('New game — Player 1 picks a piece to start.');
+        }
 
-            // Update UI
-            createPieceButtons();
-            document.getElementById('selected-piece').classList.remove('visible');
-            document.getElementById('confirm-btn').disabled = true;
+        function render() {
+            renderPieces();
             updateStatus();
         }
 
-        function setupEventListeners() {
-            const canvas = renderer.domElement;
-
-            canvas.addEventListener('mousemove', onMouseMove);
-            canvas.addEventListener('click', onClick);
-
-            document.getElementById('reset-btn').addEventListener('click', resetGame);
-            document.getElementById('confirm-btn').addEventListener('click', confirmSelection);
+        function animate() {
+            resizeRenderer();
+            controls.update();
+            renderer.render(scene, camera);
+            requestAnimationFrame(animate);
         }
 
-        function onMouseMove(event) {
+        const raycaster = new THREE.Raycaster();
+        const pointer = new THREE.Vector2();
+
+        function updateHighlight(event) {
             const rect = renderer.domElement.getBoundingClientRect();
-            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-
-            // Update floating piece position
-            if (floatingPiece && gameState.phase === 'place') {
-                raycaster.setFromCamera(mouse, camera);
-                const intersects = raycaster.intersectObjects(boardSquares);
-
-                if (intersects.length > 0) {
-                    const square = intersects[0].object;
-                    const index = square.userData.index;
-
-                    if (gameState.board[index] === null) {
-                        const attrs = getPieceAttributes(floatingPiece.userData.pieceIndex);
-                        const height = attrs.tall ? 0.9 : 0.5;
-                        floatingPiece.position.x = square.position.x;
-                        floatingPiece.position.z = square.position.z;
-                        floatingPiece.position.y = height + 0.5;
-                    }
+            pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+            raycaster.setFromCamera(pointer, camera);
+            const intersects = raycaster.intersectObjects(boardSquares);
+            boardSquares.forEach((sq) => sq.material.color.copy(sq.userData.baseColor));
+            renderer.domElement.style.cursor = 'default';
+            if (intersects.length > 0) {
+                const square = intersects[0].object;
+                const idx = square.userData.index;
+                if (state.phase === 'place' && !state.winner && state.board[idx] === null) {
+                    square.material.color.copy(COLORS.highlight);
+                    renderer.domElement.style.cursor = 'pointer';
                 }
-            }
-
-            // Highlight squares
-            if (gameState.phase === 'place' && !gameState.gameOver) {
-                raycaster.setFromCamera(mouse, camera);
-                const intersects = raycaster.intersectObjects(boardSquares);
-
-                // Reset previous highlight
-                if (highlightedSquare) {
-                    highlightedSquare.material.color.setHex(highlightedSquare.userData.originalColor);
-                    highlightedSquare = null;
-                }
-
-                if (intersects.length > 0) {
-                    const square = intersects[0].object;
-                    const index = square.userData.index;
-
-                    if (gameState.board[index] === null) {
-                        square.material.color.setHex(COLORS.highlight);
-                        highlightedSquare = square;
-                        renderer.domElement.style.cursor = 'pointer';
-                    } else {
-                        renderer.domElement.style.cursor = 'not-allowed';
-                    }
-                } else {
-                    renderer.domElement.style.cursor = 'default';
-                }
-            } else {
-                renderer.domElement.style.cursor = 'default';
             }
         }
 
         function onClick(event) {
-            if (gameState.phase !== 'place' || gameState.gameOver) return;
-
             const rect = renderer.domElement.getBoundingClientRect();
-            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-
-            raycaster.setFromCamera(mouse, camera);
+            pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+            raycaster.setFromCamera(pointer, camera);
             const intersects = raycaster.intersectObjects(boardSquares);
-
             if (intersects.length > 0) {
                 const square = intersects[0].object;
-                const index = square.userData.index;
-
-                if (gameState.board[index] === null) {
-                    placePiece(index);
-                }
+                const idx = square.userData.index;
+                placePiece(idx);
             }
         }
 
-        // Camera rotation
-        let cameraAngle = Math.PI / 4;
-        let targetCameraAngle = cameraAngle;
-        let isDragging = false;
-        let previousMouseX = 0;
+        renderer.domElement.addEventListener('pointermove', updateHighlight);
+        renderer.domElement.addEventListener('click', onClick);
+        document.getElementById('reset').addEventListener('click', resetBoard);
 
-        renderer?.domElement?.addEventListener('mousedown', (e) => {
-            if (e.button === 2 || e.button === 1) { // Right or middle click
-                isDragging = true;
-                previousMouseX = e.clientX;
-            }
-        });
-
-        window.addEventListener('mouseup', () => {
-            isDragging = false;
-        });
-
-        window.addEventListener('mousemove', (e) => {
-            if (isDragging) {
-                const deltaX = e.clientX - previousMouseX;
-                targetCameraAngle += deltaX * 0.01;
-                previousMouseX = e.clientX;
-            }
-        });
-
-        // Prevent context menu
-        renderer?.domElement?.addEventListener('contextmenu', (e) => e.preventDefault());
-
-        function animate() {
-            requestAnimationFrame(animate);
-
-            // Smooth camera rotation
-            cameraAngle += (targetCameraAngle - cameraAngle) * 0.1;
-
-            const radius = 14;
-            const height = 12;
-            camera.position.x = Math.cos(cameraAngle) * radius;
-            camera.position.z = Math.sin(cameraAngle) * radius;
-            camera.position.y = height;
-            camera.lookAt(0, 0, 0);
-
-            // Animate floating piece
-            if (floatingPiece) {
-                floatingPiece.rotation.y += 0.02;
-            }
-
-            renderer.render(scene, camera);
-        }
-
-        // Start the game
-        init();
+        buildBoard();
+        render();
+        animate();
+        showToast('Player 1 picks a piece; Player 2 will place it.');
     </script>
 </body>
 </html>
