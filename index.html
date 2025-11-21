@@ -1,1 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quarto Hotseat (3D)</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: radial-gradient(circle at 30% 20%, #1f1f2e, #0d0d14 55%);
+      font-family: "Inter", system-ui, -apple-system, sans-serif;
+      color: #f7f7fb;
+      overflow: hidden;
+    }
+    canvas { display: block; }
+    .hud {
+      position: fixed;
+      top: 16px;
+      left: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-width: 340px;
+      background: rgba(10, 10, 18, 0.75);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 12px 14px;
+      border-radius: 12px;
+      backdrop-filter: blur(6px);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+    }
+    .hud h1 {
+      margin: 0;
+      font-size: 18px;
+      letter-spacing: 0.5px;
+    }
+    .hud .phase {
+      font-size: 14px;
+      opacity: 0.85;
+    }
+    .hud .selected {
+      font-size: 13px;
+      color: #b8e9ff;
+      line-height: 1.4;
+    }
+    .controls {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    button {
+      background: linear-gradient(135deg, #2b67f5, #6a9dff);
+      border: none;
+      color: white;
+      padding: 8px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 600;
+      letter-spacing: 0.1px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+      transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.2s;
+    }
+    button.secondary {
+      background: rgba(255, 255, 255, 0.08);
+      color: #e7e7ef;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    button:hover { transform: translateY(-1px); box-shadow: 0 10px 26px rgba(0, 0, 0, 0.28); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
 
+    .legend {
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.78);
+      line-height: 1.5;
+    }
+
+    .overlay {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(4px);
+      z-index: 10;
+    }
+    .overlay.active { display: flex; }
+    .overlay .card {
+      background: #10101c;
+      padding: 24px 28px;
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 18px 48px rgba(0, 0, 0, 0.4);
+      text-align: center;
+      max-width: 360px;
+    }
+    .overlay h2 {
+      margin: 0 0 8px;
+      font-size: 22px;
+      letter-spacing: 0.3px;
+    }
+    .overlay p { margin: 0 0 16px; color: rgba(255, 255, 255, 0.85); }
+    .footer {
+      position: fixed;
+      bottom: 12px;
+      right: 16px;
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.6);
+      background: rgba(10, 10, 18, 0.65);
+      padding: 6px 10px;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+  </style>
+</head>
+<body>
+  <div class="hud">
+    <h1>Quarto · Hotseat 3D</h1>
+    <div class="phase" id="phaseText">Loading scene…</div>
+    <div class="selected" id="selectedInfo">Select a piece to start.</div>
+    <div class="controls">
+      <button id="undoBtn" class="secondary" disabled>Undo</button>
+      <button id="restartBtn" class="secondary">Restart</button>
+    </div>
+    <div class="legend">
+      <strong>Rules:</strong> Choose a piece for your opponent. They must place it. Four in a row sharing any attribute wins.
+    </div>
+  </div>
+
+  <div class="overlay" id="overlay">
+    <div class="card">
+      <h2 id="overlayTitle">Game Over</h2>
+      <p id="overlayDesc"></p>
+      <div class="controls" style="justify-content:center;">
+        <button id="playAgain">Play again</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">Click pieces to select · Click sockets to place</div>
+  <canvas id="scene"></canvas>
+
+  <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+  <script>
+    const canvas = document.getElementById('scene');
+    const renderer = new THREE.WebGLRenderer({ antialias: true, canvas, alpha: true });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x080810, 0.06);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(5, 6, 6);
+    camera.lookAt(0, 0, 0);
+
+    const ambient = new THREE.AmbientLight(0xf0f8ff, 0.65);
+    scene.add(ambient);
+    const dir = new THREE.DirectionalLight(0xffffff, 1.1);
+    dir.position.set(5, 8, 4);
+    dir.castShadow = true;
+    scene.add(dir);
+
+    const boardGroup = new THREE.Group();
+    const trayGroup = new THREE.Group();
+    scene.add(boardGroup);
+    scene.add(trayGroup);
+
+    const groundGeo = new THREE.CircleGeometry(12, 64);
+    const groundMat = new THREE.MeshStandardMaterial({ color: 0x0c0c15, metalness: 0.2, roughness: 0.9, transparent: true, opacity: 0.9 });
+    const ground = new THREE.Mesh(groundGeo, groundMat);
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = -0.01;
+    boardGroup.add(ground);
+
+    const boardBaseGeo = new THREE.BoxGeometry(5.2, 0.25, 5.2);
+    const boardBaseMat = new THREE.MeshStandardMaterial({ color: 0x192231, metalness: 0.35, roughness: 0.4 });
+    const boardBase = new THREE.Mesh(boardBaseGeo, boardBaseMat);
+    boardBase.position.y = 0.1;
+    boardBase.receiveShadow = true;
+    boardGroup.add(boardBase);
+
+    const socketMat = new THREE.MeshStandardMaterial({ color: 0x2e3b55, emissive: 0x0a1220, metalness: 0.55, roughness: 0.35 });
+    const socketHighlightMat = new THREE.MeshStandardMaterial({ color: 0x4e7cff, emissive: 0x1c3c8a, metalness: 0.6, roughness: 0.3 });
+
+    const sockets = [];
+    const socketGeo = new THREE.CylinderGeometry(0.58, 0.58, 0.2, 32);
+    const startOffset = -1.8;
+    for (let r = 0; r < 4; r++) {
+      for (let c = 0; c < 4; c++) {
+        const mesh = new THREE.Mesh(socketGeo, socketMat.clone());
+        mesh.position.set(startOffset + c * 1.2, 0.25, startOffset + r * 1.2);
+        mesh.receiveShadow = true;
+        mesh.userData = { index: r * 4 + c, type: 'socket', occupied: false };
+        sockets.push(mesh);
+        boardGroup.add(mesh);
+      }
+    }
+
+    const pieceMeshes = new Map();
+    const boardState = Array(16).fill(null);
+    let remainingPieces = new Set(Array.from({ length: 16 }, (_, i) => i));
+    let selectedPiece = null;
+    let currentPlayer = 'A';
+    let phase = 'select';
+    const history = [];
+    let gameOver = false;
+
+    const phaseText = document.getElementById('phaseText');
+    const selectedInfo = document.getElementById('selectedInfo');
+    const undoBtn = document.getElementById('undoBtn');
+    const restartBtn = document.getElementById('restartBtn');
+    const overlay = document.getElementById('overlay');
+    const overlayTitle = document.getElementById('overlayTitle');
+    const overlayDesc = document.getElementById('overlayDesc');
+    const playAgainBtn = document.getElementById('playAgain');
+
+    const attributeLabels = ['Tall', 'Dark', 'Solid', 'Square'];
+
+    function bitLabel(id) {
+      const bits = attributeLabels.map((label, idx) => ((id >> idx) & 1) ? label : `Not ${label}`);
+      return bits.join(' · ');
+    }
+
+    function createPieceGeometry(id) {
+      const tall = (id & 1) === 1;
+      const dark = (id & 2) === 2;
+      const solid = (id & 4) === 4;
+      const square = (id & 8) === 8;
+
+      const height = tall ? 1.2 : 0.75;
+      const radius = 0.38;
+      const bodyGeo = square ? new THREE.BoxGeometry(radius * 1.6, height, radius * 1.6, 1, 1, 1) : new THREE.CylinderGeometry(radius, radius, height, 24);
+      const capGeo = square ? new THREE.BoxGeometry(radius * 1.7, solid ? 0.15 : 0.12, radius * 1.7, 1, 1, 1) : new THREE.CylinderGeometry(radius * 1.05, radius * 1.05, solid ? 0.16 : 0.12, 24);
+
+      const color = dark ? new THREE.Color(0x6d7cff) : new THREE.Color(0xf6f1ff);
+      const bodyMat = new THREE.MeshStandardMaterial({ color, metalness: dark ? 0.6 : 0.25, roughness: dark ? 0.35 : 0.2, transparent: !solid, opacity: solid ? 1 : 0.45, emissive: dark ? 0x111231 : 0x222233, emissiveIntensity: 0.25 });
+      const capMat = new THREE.MeshStandardMaterial({ color: solid ? color : new THREE.Color(color).offsetHSL(0, 0, 0.18), metalness: 0.6, roughness: 0.18, emissive: dark ? 0x111231 : 0x0b0d18, emissiveIntensity: 0.18, transparent: !solid, opacity: solid ? 1 : 0.6 });
+
+      const group = new THREE.Group();
+      const body = new THREE.Mesh(bodyGeo, bodyMat);
+      body.castShadow = true;
+      body.receiveShadow = true;
+      body.position.y = height / 2;
+      group.add(body);
+
+      const cap = new THREE.Mesh(capGeo, capMat);
+      cap.castShadow = true;
+      cap.receiveShadow = true;
+      cap.position.y = height + (solid ? capGeo.parameters.height / 2 : capGeo.parameters.height * 0.4);
+      if (!solid) cap.scale.set(1.05, 0.8, 1.05);
+      group.add(cap);
+
+      const rimGeo = new THREE.TorusGeometry(radius * 1.05, 0.04, 12, 40);
+      const rim = new THREE.Mesh(rimGeo, new THREE.MeshStandardMaterial({ color: 0x89c2ff, emissive: 0x3a6bff, emissiveIntensity: solid ? 0.12 : 0.4, transparent: true, opacity: solid ? 0.45 : 0.8 }));
+      rim.position.y = 0.08;
+      rim.rotation.x = Math.PI / 2;
+      group.add(rim);
+
+      return group;
+    }
+
+    function placeTrayPieces() {
+      trayGroup.clear();
+      const cols = 8;
+      const spacing = 0.9;
+      let idx = 0;
+      for (const id of remainingPieces) {
+        const mesh = pieceMeshes.get(id);
+        const row = Math.floor(idx / cols);
+        const col = idx % cols;
+        mesh.position.set(-3.6 + col * spacing, 0, 3.2 - row * spacing);
+        mesh.rotation.y = (col % 2 === 0 ? 0.2 : -0.2) + (row * 0.15);
+        mesh.userData.inTray = true;
+        mesh.visible = true;
+        trayGroup.add(mesh);
+        idx++;
+      }
+    }
+
+    function createPieces() {
+      for (let i = 0; i < 16; i++) {
+        const mesh = createPieceGeometry(i);
+        mesh.userData = { id: i, type: 'piece', inTray: true };
+        pieceMeshes.set(i, mesh);
+      }
+      placeTrayPieces();
+    }
+
+    function setPhaseText() {
+      if (gameOver) return;
+      if (phase === 'select') {
+        phaseText.textContent = `Player ${currentPlayer}: select a piece for Player ${currentPlayer === 'A' ? 'B' : 'A'}.`;
+        selectedInfo.textContent = selectedPiece === null ? 'No piece selected.' : `Selected: ${bitLabel(selectedPiece)}`;
+      } else {
+        phaseText.textContent = `Player ${currentPlayer}: place the selected piece.`;
+        selectedInfo.textContent = selectedPiece !== null ? `Placing: ${bitLabel(selectedPiece)}.` : 'Select a piece to continue.';
+      }
+    }
+
+    function saveHistory() {
+      const state = {
+        board: [...boardState],
+        remaining: new Set(remainingPieces),
+        selected: selectedPiece,
+        player: currentPlayer,
+        phase,
+        piecePositions: Array.from(pieceMeshes.entries()).map(([id, mesh]) => ({ id, pos: mesh.position.clone(), parent: mesh.parent === trayGroup ? 'tray' : 'board' }))
+      };
+      history.push(state);
+      undoBtn.disabled = history.length === 0;
+    }
+
+    function restoreState(snapshot) {
+      boardState.splice(0, boardState.length, ...snapshot.board);
+      remainingPieces = new Set(snapshot.remaining);
+      selectedPiece = snapshot.selected;
+      currentPlayer = snapshot.player;
+      phase = snapshot.phase;
+      gameOver = false;
+      overlay.classList.remove('active');
+
+      trayGroup.clear();
+      sockets.forEach((s) => { s.userData.occupied = false; s.material = socketMat.clone(); });
+
+      snapshot.piecePositions.forEach(({ id, pos, parent }) => {
+        const mesh = pieceMeshes.get(id);
+        mesh.position.copy(pos);
+        mesh.rotation.y = 0;
+        mesh.scale.set(1, 1, 1);
+        mesh.visible = true;
+        mesh.userData.inTray = parent === 'tray';
+        if (parent === 'tray') {
+          trayGroup.add(mesh);
+        } else {
+          const socket = sockets.find((s) => s.position.distanceTo(pos) < 0.2);
+          if (socket) {
+            socket.userData.occupied = true;
+            mesh.position.y = socket.position.y + 0.35;
+          }
+          boardGroup.add(mesh);
+        }
+      });
+
+      placeTrayPieces();
+      updateHUD();
+    }
+
+    function resetGame() {
+      history.length = 0;
+      undoBtn.disabled = true;
+      boardState.fill(null);
+      remainingPieces = new Set(Array.from({ length: 16 }, (_, i) => i));
+      selectedPiece = null;
+      currentPlayer = 'A';
+      phase = 'select';
+      gameOver = false;
+      overlay.classList.remove('active');
+
+      trayGroup.clear();
+      sockets.forEach((s) => { s.userData.occupied = false; s.material = socketMat.clone(); });
+      pieceMeshes.forEach((mesh) => {
+        mesh.scale.set(1, 1, 1);
+        mesh.rotation.set(0, 0, 0);
+        mesh.userData.inTray = true;
+      });
+      placeTrayPieces();
+      updateHUD();
+    }
+
+    function sharedAttribute(ids) {
+      for (let bit = 0; bit < 4; bit++) {
+        const mask = 1 << bit;
+        const allHave = ids.every((id) => (id & mask) === mask);
+        const noneHave = ids.every((id) => (id & mask) === 0);
+        if (allHave || noneHave) return true;
+      }
+      return false;
+    }
+
+    function checkWin() {
+      const lines = [
+        [0, 1, 2, 3], [4, 5, 6, 7], [8, 9, 10, 11], [12, 13, 14, 15],
+        [0, 4, 8, 12], [1, 5, 9, 13], [2, 6, 10, 14], [3, 7, 11, 15],
+        [0, 5, 10, 15], [3, 6, 9, 12]
+      ];
+      for (const line of lines) {
+        const ids = line.map((i) => boardState[i]);
+        if (ids.every((v) => v !== null) && sharedAttribute(ids)) return { winner: currentPlayer, line };
+      }
+      const full = boardState.every((v) => v !== null);
+      return full ? { draw: true } : null;
+    }
+
+    function highlightLine(line) {
+      line.forEach((i) => {
+        const socket = sockets[i];
+        socket.material = socketHighlightMat.clone();
+        socket.material.emissiveIntensity = 0.6;
+      });
+    }
+
+    function showOverlay(title, desc) {
+      overlayTitle.textContent = title;
+      overlayDesc.textContent = desc;
+      overlay.classList.add('active');
+      gameOver = true;
+    }
+
+    function updateHUD() {
+      undoBtn.disabled = history.length === 0 || gameOver;
+      setPhaseText();
+    }
+
+    function switchPlayers() {
+      currentPlayer = currentPlayer === 'A' ? 'B' : 'A';
+      selectedPiece = null;
+      phase = 'select';
+    }
+
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+
+    function onPointerMove(event) {
+      pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
+      pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      raycaster.setFromCamera(pointer, camera);
+
+      const hoverTargets = phase === 'select' ? Array.from(trayGroup.children) : sockets.filter((s) => !s.userData.occupied);
+      const intersects = raycaster.intersectObjects(hoverTargets, false);
+      hoverTargets.forEach((obj) => { obj.scale.set(1, 1, 1); if (obj.material && obj.material.emissive) obj.material.emissiveIntensity = 0.2; });
+      if (intersects.length > 0) {
+        const hit = intersects[0].object.parent?.userData?.type === 'piece' ? intersects[0].object.parent : intersects[0].object;
+        hit.scale.set(1.08, 1.08, 1.08);
+        if (hit.material && hit.material.emissive) hit.material.emissiveIntensity = 0.5;
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    function handleSelection(mesh) {
+      if (!remainingPieces.has(mesh.userData.id) || gameOver) return;
+      saveHistory();
+      selectedPiece = mesh.userData.id;
+      phase = 'place';
+      selectedInfo.textContent = `Selected: ${bitLabel(selectedPiece)}`;
+      updateHUD();
+    }
+
+    function handlePlacement(socket) {
+      if (socket.userData.occupied || selectedPiece === null || gameOver) return;
+      saveHistory();
+      const mesh = pieceMeshes.get(selectedPiece);
+      remainingPieces.delete(selectedPiece);
+      boardState[socket.userData.index] = selectedPiece;
+      socket.userData.occupied = true;
+
+      trayGroup.remove(mesh);
+      boardGroup.add(mesh);
+      mesh.userData.inTray = false;
+      mesh.position.copy(socket.position);
+      mesh.position.y = socket.position.y + 0.35;
+      mesh.scale.set(1, 1, 1);
+      mesh.rotation.set(0, 0, 0);
+
+      const outcome = checkWin();
+      if (outcome?.winner) {
+        highlightLine(outcome.line);
+        showOverlay(`Player ${currentPlayer} wins!`, 'Four pieces share a common attribute in a line.');
+      } else if (outcome?.draw) {
+        showOverlay('Draw', 'All pieces placed with no shared attribute line.');
+      } else {
+        switchPlayers();
+      }
+      updateHUD();
+    }
+
+    function onPointerDown(event) {
+      if (gameOver) return;
+      pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
+      pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(pointer, camera);
+
+      if (phase === 'select') {
+        const intersects = raycaster.intersectObjects(trayGroup.children, true);
+        if (intersects.length > 0) {
+          const target = intersects[0].object.parent;
+          if (target?.userData?.type === 'piece') handleSelection(target);
+        }
+      } else if (phase === 'place') {
+        const targets = sockets.filter((s) => !s.userData.occupied);
+        const intersects = raycaster.intersectObjects(targets, true);
+        if (intersects.length > 0) {
+          const socket = intersects[0].object;
+          handlePlacement(socket);
+        }
+      }
+    }
+
+    function onResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    undoBtn.addEventListener('click', () => {
+      if (history.length === 0) return;
+      const snapshot = history.pop();
+      restoreState(snapshot);
+    });
+
+    restartBtn.addEventListener('click', resetGame);
+    playAgainBtn.addEventListener('click', resetGame);
+
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('resize', onResize);
+
+    createPieces();
+    placeTrayPieces();
+    updateHUD();
+    animate();
+  </script>
+</body>
+</html>
