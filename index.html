@@ -1,529 +1,1151 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Quarto Hotseat (3D)</title>
-  <style>
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      background: radial-gradient(circle at 30% 20%, #1f1f2e, #0d0d14 55%);
-      font-family: "Inter", system-ui, -apple-system, sans-serif;
-      color: #f7f7fb;
-      overflow: hidden;
-    }
-    canvas { display: block; }
-    .hud {
-      position: fixed;
-      top: 16px;
-      left: 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      max-width: 340px;
-      background: rgba(10, 10, 18, 0.75);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      padding: 12px 14px;
-      border-radius: 12px;
-      backdrop-filter: blur(6px);
-      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
-    }
-    .hud h1 {
-      margin: 0;
-      font-size: 18px;
-      letter-spacing: 0.5px;
-    }
-    .hud .phase {
-      font-size: 14px;
-      opacity: 0.85;
-    }
-    .hud .selected {
-      font-size: 13px;
-      color: #b8e9ff;
-      line-height: 1.4;
-    }
-    .controls {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-    button {
-      background: linear-gradient(135deg, #2b67f5, #6a9dff);
-      border: none;
-      color: white;
-      padding: 8px 12px;
-      border-radius: 10px;
-      cursor: pointer;
-      font-weight: 600;
-      letter-spacing: 0.1px;
-      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
-      transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.2s;
-    }
-    button.secondary {
-      background: rgba(255, 255, 255, 0.08);
-      color: #e7e7ef;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-    }
-    button:hover { transform: translateY(-1px); box-shadow: 0 10px 26px rgba(0, 0, 0, 0.28); }
-    button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Quarto on Canvas</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: "Inter", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont,
+          "Helvetica Neue", sans-serif;
+        --bg: #05070c;
+        --panel: #0f1930;
+        --panel-soft: #101f3b;
+        --text: #f5f5f5;
+        --muted: #94a3b8;
+        --accent: #81c6ff;
+        --accent-soft: rgba(129, 198, 255, 0.35);
+      }
 
-    .legend {
-      font-size: 12px;
-      color: rgba(255, 255, 255, 0.78);
-      line-height: 1.5;
-    }
+      * {
+        box-sizing: border-box;
+      }
 
-    .overlay {
-      position: fixed;
-      inset: 0;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      background: rgba(0, 0, 0, 0.7);
-      backdrop-filter: blur(4px);
-      z-index: 10;
-    }
-    .overlay.active { display: flex; }
-    .overlay .card {
-      background: #10101c;
-      padding: 24px 28px;
-      border-radius: 16px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      box-shadow: 0 18px 48px rgba(0, 0, 0, 0.4);
-      text-align: center;
-      max-width: 360px;
-    }
-    .overlay h2 {
-      margin: 0 0 8px;
-      font-size: 22px;
-      letter-spacing: 0.3px;
-    }
-    .overlay p { margin: 0 0 16px; color: rgba(255, 255, 255, 0.85); }
-    .footer {
-      position: fixed;
-      bottom: 12px;
-      right: 16px;
-      font-size: 12px;
-      color: rgba(255, 255, 255, 0.6);
-      background: rgba(10, 10, 18, 0.65);
-      padding: 6px 10px;
-      border-radius: 10px;
-      border: 1px solid rgba(255, 255, 255, 0.06);
-    }
-  </style>
-</head>
-<body>
-  <div class="hud">
-    <h1>Quarto · Hotseat 3D</h1>
-    <div class="phase" id="phaseText">Loading scene…</div>
-    <div class="selected" id="selectedInfo">Select a piece to start.</div>
-    <div class="controls">
-      <button id="undoBtn" class="secondary" disabled>Undo</button>
-      <button id="restartBtn" class="secondary">Restart</button>
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: radial-gradient(circle at top, #111c33, #04060c 70%);
+        color: var(--text);
+        display: flex;
+        justify-content: center;
+      }
+
+      .app-shell {
+        width: min(1100px, 96vw);
+        padding: 32px clamp(18px, 4vw, 40px) 64px;
+      }
+
+      header h1 {
+        margin: 0 0 0.25rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+      }
+
+      header p {
+        margin: 0;
+        color: var(--muted);
+        max-width: 620px;
+      }
+
+      main {
+        margin-top: 32px;
+      }
+
+      .board-panel {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 32px;
+      }
+
+      .board-perspective {
+        flex: 1 1 520px;
+        background: transparent;
+        perspective: 1800px;
+      }
+
+      .board-surface {
+        width: 100%;
+        aspect-ratio: 1 / 1;
+        position: relative;
+        filter: drop-shadow(0 40px 40px rgba(0, 0, 0, 0.35));
+      }
+
+      #threeCanvas {
+        width: 100%;
+        height: 100%;
+        display: block;
+        background: transparent;
+        border-radius: 32px;
+        box-shadow: inset 0 25px 40px rgba(255, 255, 255, 0.08),
+          inset 0 -20px 40px rgba(0, 0, 0, 0.45);
+      }
+
+      .status-panel {
+        flex: 1 1 260px;
+        padding: 24px;
+        border-radius: 20px;
+        background: linear-gradient(160deg, var(--panel) 20%, #081024 120%);
+        box-shadow: 0 25px 45px rgba(0, 0, 0, 0.35);
+      }
+
+      .status-panel h2 {
+        margin: 0 0 0.5rem;
+        font-size: 1.1rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--accent);
+      }
+
+      .status-panel p {
+        margin: 0.2rem 0;
+        color: var(--text);
+        line-height: 1.4;
+      }
+
+      .subtle {
+        color: var(--muted);
+      }
+
+      button {
+        font: inherit;
+      }
+
+      #resetButton {
+        margin-top: 18px;
+        width: 100%;
+        background: var(--accent);
+        color: #04111f;
+        border: none;
+        border-radius: 12px;
+        padding: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 160ms ease, box-shadow 160ms ease;
+      }
+
+      #resetButton:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 12px 24px rgba(129, 198, 255, 0.25);
+      }
+
+      .pieces-panel {
+        margin-top: 36px;
+        padding: 28px;
+        border-radius: 24px;
+        background: linear-gradient(135deg, var(--panel-soft), #060a17);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 20px 40px rgba(0, 0, 0, 0.35);
+      }
+
+      .pieces-panel h2 {
+        margin: 0 0 0.4rem;
+        text-transform: uppercase;
+        font-size: 1rem;
+        letter-spacing: 0.2em;
+        color: var(--muted);
+      }
+
+      .legend {
+        font-size: 0.92rem;
+        color: var(--muted);
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 22px;
+      }
+
+      .legend span {
+        background: rgba(255, 255, 255, 0.03);
+        padding: 6px 12px;
+        border-radius: 999px;
+      }
+
+      .piece-pool {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(95px, 1fr));
+        gap: 16px;
+      }
+
+      .piece-token {
+        position: relative;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 20px;
+        background: rgba(6, 19, 43, 0.9);
+        padding: 10px;
+        cursor: pointer;
+        transition: border 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+        color: var(--text);
+      }
+
+      .piece-token:hover {
+        border-color: rgba(129, 198, 255, 0.8);
+        transform: translateY(-2px);
+        box-shadow: 0 15px 25px rgba(0, 0, 0, 0.35);
+      }
+
+      .piece-token canvas {
+        width: 100%;
+        height: 100px;
+        display: block;
+      }
+
+      .piece-token.used {
+        opacity: 0.32;
+        cursor: not-allowed;
+        border-style: dashed;
+      }
+
+      .piece-token.pending {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px var(--accent-soft);
+      }
+
+      .piece-token span {
+        display: block;
+        text-align: center;
+        font-size: 0.8rem;
+        margin-top: 0.3rem;
+        color: var(--muted);
+      }
+
+      @media (max-width: 960px) {
+        .board-panel {
+          flex-direction: column;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header>
+        <h1>Quinto: Local Quarto</h1>
+        <p>
+          Pass-and-play mode for the abstract strategy classic. Select a piece for your opponent,
+          place theirs on the 3D canvas, and race to align four pieces sharing any one attribute.
+        </p>
+      </header>
+
+      <main>
+        <section class="board-panel">
+          <div class="board-perspective">
+            <div class="board-surface">
+              <canvas id="threeCanvas"></canvas>
+            </div>
+          </div>
+          <div class="status-panel">
+            <h2>Turn Tracker</h2>
+            <p id="statusText"></p>
+            <p id="phaseDetails" class="subtle"></p>
+            <button id="resetButton" type="button">Start New Game</button>
+          </div>
+        </section>
+
+        <section class="pieces-panel">
+          <h2>Piece Pool</h2>
+          <div class="legend">
+            <span>Tall / Short</span>
+            <span>Light / Dark</span>
+            <span>Square / Round</span>
+            <span>Solid / Hollow</span>
+          </div>
+          <div class="piece-pool" id="piecePool"></div>
+        </section>
+      </main>
     </div>
-    <div class="legend">
-      <strong>Rules:</strong> Choose a piece for your opponent. They must place it. Four in a row sharing any attribute wins.
-    </div>
-  </div>
 
-  <div class="overlay" id="overlay">
-    <div class="card">
-      <h2 id="overlayTitle">Game Over</h2>
-      <p id="overlayDesc"></p>
-      <div class="controls" style="justify-content:center;">
-        <button id="playAgain">Play again</button>
-      </div>
-    </div>
-  </div>
-
-  <div class="footer">Click pieces to select · Click sockets to place</div>
-  <canvas id="scene"></canvas>
-
-  <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
-  <script>
-    const canvas = document.getElementById('scene');
-    const renderer = new THREE.WebGLRenderer({ antialias: true, canvas, alpha: true });
-    renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.setSize(window.innerWidth, window.innerHeight);
-
-    const scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(0x080810, 0.06);
-
-    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
-    camera.position.set(5, 6, 6);
-    camera.lookAt(0, 0, 0);
-
-    const ambient = new THREE.AmbientLight(0xf0f8ff, 0.65);
-    scene.add(ambient);
-    const dir = new THREE.DirectionalLight(0xffffff, 1.1);
-    dir.position.set(5, 8, 4);
-    dir.castShadow = true;
-    scene.add(dir);
-
-    const boardGroup = new THREE.Group();
-    const trayGroup = new THREE.Group();
-    scene.add(boardGroup);
-    scene.add(trayGroup);
-
-    const groundGeo = new THREE.CircleGeometry(12, 64);
-    const groundMat = new THREE.MeshStandardMaterial({ color: 0x0c0c15, metalness: 0.2, roughness: 0.9, transparent: true, opacity: 0.9 });
-    const ground = new THREE.Mesh(groundGeo, groundMat);
-    ground.rotation.x = -Math.PI / 2;
-    ground.position.y = -0.01;
-    boardGroup.add(ground);
-
-    const boardBaseGeo = new THREE.BoxGeometry(5.2, 0.25, 5.2);
-    const boardBaseMat = new THREE.MeshStandardMaterial({ color: 0x192231, metalness: 0.35, roughness: 0.4 });
-    const boardBase = new THREE.Mesh(boardBaseGeo, boardBaseMat);
-    boardBase.position.y = 0.1;
-    boardBase.receiveShadow = true;
-    boardGroup.add(boardBase);
-
-    const socketMat = new THREE.MeshStandardMaterial({ color: 0x2e3b55, emissive: 0x0a1220, metalness: 0.55, roughness: 0.35 });
-    const socketHighlightMat = new THREE.MeshStandardMaterial({ color: 0x4e7cff, emissive: 0x1c3c8a, metalness: 0.6, roughness: 0.3 });
-
-    const sockets = [];
-    const socketGeo = new THREE.CylinderGeometry(0.58, 0.58, 0.2, 32);
-    const startOffset = -1.8;
-    for (let r = 0; r < 4; r++) {
-      for (let c = 0; c < 4; c++) {
-        const mesh = new THREE.Mesh(socketGeo, socketMat.clone());
-        mesh.position.set(startOffset + c * 1.2, 0.25, startOffset + r * 1.2);
-        mesh.receiveShadow = true;
-        mesh.userData = { index: r * 4 + c, type: 'socket', occupied: false };
-        sockets.push(mesh);
-        boardGroup.add(mesh);
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"
+        }
       }
-    }
+    </script>
+    <script type="module">
+      import * as THREE from "three";
+      import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
-    const pieceMeshes = new Map();
-    const boardState = Array(16).fill(null);
-    let remainingPieces = new Set(Array.from({ length: 16 }, (_, i) => i));
-    let selectedPiece = null;
-    let currentPlayer = 'A';
-    let phase = 'select';
-    const history = [];
-    let gameOver = false;
+      (() => {
+        const players = ["Player 1", "Player 2"];
+        const attributeLabels = {
+          tall: ["Short", "Tall"],
+          light: ["Dark", "Light"],
+          square: ["Round", "Square"],
+          solid: ["Hollow", "Solid"],
+        };
 
-    const phaseText = document.getElementById('phaseText');
-    const selectedInfo = document.getElementById('selectedInfo');
-    const undoBtn = document.getElementById('undoBtn');
-    const restartBtn = document.getElementById('restartBtn');
-    const overlay = document.getElementById('overlay');
-    const overlayTitle = document.getElementById('overlayTitle');
-    const overlayDesc = document.getElementById('overlayDesc');
-    const playAgainBtn = document.getElementById('playAgain');
+        const canvas = document.getElementById("threeCanvas");
+        const boardWrapper = document.querySelector(".board-surface");
+        const statusEl = document.getElementById("statusText");
+        const phaseEl = document.getElementById("phaseDetails");
+        const resetBtn = document.getElementById("resetButton");
+        const piecePoolEl = document.getElementById("piecePool");
 
-    const attributeLabels = ['Tall', 'Dark', 'Solid', 'Square'];
-
-    function bitLabel(id) {
-      const bits = attributeLabels.map((label, idx) => ((id >> idx) & 1) ? label : `Not ${label}`);
-      return bits.join(' · ');
-    }
-
-    function createPieceGeometry(id) {
-      const tall = (id & 1) === 1;
-      const dark = (id & 2) === 2;
-      const solid = (id & 4) === 4;
-      const square = (id & 8) === 8;
-
-      const height = tall ? 1.2 : 0.75;
-      const radius = 0.38;
-      const bodyGeo = square ? new THREE.BoxGeometry(radius * 1.6, height, radius * 1.6, 1, 1, 1) : new THREE.CylinderGeometry(radius, radius, height, 24);
-      const capGeo = square ? new THREE.BoxGeometry(radius * 1.7, solid ? 0.15 : 0.12, radius * 1.7, 1, 1, 1) : new THREE.CylinderGeometry(radius * 1.05, radius * 1.05, solid ? 0.16 : 0.12, 24);
-
-      const color = dark ? new THREE.Color(0x6d7cff) : new THREE.Color(0xf6f1ff);
-      const bodyMat = new THREE.MeshStandardMaterial({ color, metalness: dark ? 0.6 : 0.25, roughness: dark ? 0.35 : 0.2, transparent: !solid, opacity: solid ? 1 : 0.45, emissive: dark ? 0x111231 : 0x222233, emissiveIntensity: 0.25 });
-      const capMat = new THREE.MeshStandardMaterial({ color: solid ? color : new THREE.Color(color).offsetHSL(0, 0, 0.18), metalness: 0.6, roughness: 0.18, emissive: dark ? 0x111231 : 0x0b0d18, emissiveIntensity: 0.18, transparent: !solid, opacity: solid ? 1 : 0.6 });
-
-      const group = new THREE.Group();
-      const body = new THREE.Mesh(bodyGeo, bodyMat);
-      body.castShadow = true;
-      body.receiveShadow = true;
-      body.position.y = height / 2;
-      group.add(body);
-
-      const cap = new THREE.Mesh(capGeo, capMat);
-      cap.castShadow = true;
-      cap.receiveShadow = true;
-      cap.position.y = height + (solid ? capGeo.parameters.height / 2 : capGeo.parameters.height * 0.4);
-      if (!solid) cap.scale.set(1.05, 0.8, 1.05);
-      group.add(cap);
-
-      const rimGeo = new THREE.TorusGeometry(radius * 1.05, 0.04, 12, 40);
-      const rim = new THREE.Mesh(rimGeo, new THREE.MeshStandardMaterial({ color: 0x89c2ff, emissive: 0x3a6bff, emissiveIntensity: solid ? 0.12 : 0.4, transparent: true, opacity: solid ? 0.45 : 0.8 }));
-      rim.position.y = 0.08;
-      rim.rotation.x = Math.PI / 2;
-      group.add(rim);
-
-      return group;
-    }
-
-    function placeTrayPieces() {
-      trayGroup.clear();
-      const cols = 8;
-      const spacing = 0.9;
-      let idx = 0;
-      for (const id of remainingPieces) {
-        const mesh = pieceMeshes.get(id);
-        const row = Math.floor(idx / cols);
-        const col = idx % cols;
-        mesh.position.set(-3.6 + col * spacing, 0, 3.2 - row * spacing);
-        mesh.rotation.y = (col % 2 === 0 ? 0.2 : -0.2) + (row * 0.15);
-        mesh.userData.inTray = true;
-        mesh.visible = true;
-        trayGroup.add(mesh);
-        idx++;
-      }
-    }
-
-    function createPieces() {
-      for (let i = 0; i < 16; i++) {
-        const mesh = createPieceGeometry(i);
-        mesh.userData = { id: i, type: 'piece', inTray: true };
-        pieceMeshes.set(i, mesh);
-      }
-      placeTrayPieces();
-    }
-
-    function setPhaseText() {
-      if (gameOver) return;
-      if (phase === 'select') {
-        phaseText.textContent = `Player ${currentPlayer}: select a piece for Player ${currentPlayer === 'A' ? 'B' : 'A'}.`;
-        selectedInfo.textContent = selectedPiece === null ? 'No piece selected.' : `Selected: ${bitLabel(selectedPiece)}`;
-      } else {
-        phaseText.textContent = `Player ${currentPlayer}: place the selected piece.`;
-        selectedInfo.textContent = selectedPiece !== null ? `Placing: ${bitLabel(selectedPiece)}.` : 'Select a piece to continue.';
-      }
-    }
-
-    function saveHistory() {
-      const state = {
-        board: [...boardState],
-        remaining: new Set(remainingPieces),
-        selected: selectedPiece,
-        player: currentPlayer,
-        phase,
-        piecePositions: Array.from(pieceMeshes.entries()).map(([id, mesh]) => ({ id, pos: mesh.position.clone(), parent: mesh.parent === trayGroup ? 'tray' : 'board' }))
-      };
-      history.push(state);
-      undoBtn.disabled = history.length === 0;
-    }
-
-    function restoreState(snapshot) {
-      boardState.splice(0, boardState.length, ...snapshot.board);
-      remainingPieces = new Set(snapshot.remaining);
-      selectedPiece = snapshot.selected;
-      currentPlayer = snapshot.player;
-      phase = snapshot.phase;
-      gameOver = false;
-      overlay.classList.remove('active');
-
-      trayGroup.clear();
-      sockets.forEach((s) => { s.userData.occupied = false; s.material = socketMat.clone(); });
-
-      snapshot.piecePositions.forEach(({ id, pos, parent }) => {
-        const mesh = pieceMeshes.get(id);
-        mesh.position.copy(pos);
-        mesh.rotation.y = 0;
-        mesh.scale.set(1, 1, 1);
-        mesh.visible = true;
-        mesh.userData.inTray = parent === 'tray';
-        if (parent === 'tray') {
-          trayGroup.add(mesh);
-        } else {
-          const socket = sockets.find((s) => s.position.distanceTo(pos) < 0.2);
-          if (socket) {
-            socket.userData.occupied = true;
-            mesh.position.y = socket.position.y + 0.35;
+        const boardSize = 4;
+        const totalCells = boardSize * boardSize;
+        const lines = [];
+        for (let r = 0; r < boardSize; r++) {
+          const row = [];
+          const col = [];
+          for (let c = 0; c < boardSize; c++) {
+            row.push(r * boardSize + c);
+            col.push(c * boardSize + r);
           }
-          boardGroup.add(mesh);
+          lines.push(row, col);
         }
-      });
+        lines.push(
+          [0, 5, 10, 15],
+          [3, 6, 9, 12],
+        );
 
-      placeTrayPieces();
-      updateHUD();
-    }
+        const state = {
+          board: Array(totalCells).fill(null),
+          pieces: generatePieces(),
+          selectedPieceId: null,
+          phase: "selectPiece",
+          activePlayer: 0,
+          winner: null,
+          draw: false,
+          winningLine: null,
+        };
 
-    function resetGame() {
-      history.length = 0;
-      undoBtn.disabled = true;
-      boardState.fill(null);
-      remainingPieces = new Set(Array.from({ length: 16 }, (_, i) => i));
-      selectedPiece = null;
-      currentPlayer = 'A';
-      phase = 'select';
-      gameOver = false;
-      overlay.classList.remove('active');
+        const pieceNodes = new Map();
+        const piecesById = new Map(state.pieces.map((piece) => [piece.id, piece]));
 
-      trayGroup.clear();
-      sockets.forEach((s) => { s.userData.occupied = false; s.material = socketMat.clone(); });
-      pieceMeshes.forEach((mesh) => {
-        mesh.scale.set(1, 1, 1);
-        mesh.rotation.set(0, 0, 0);
-        mesh.userData.inTray = true;
-      });
-      placeTrayPieces();
-      updateHUD();
-    }
+        const boardMetrics = {
+          cellSize: 7.5,
+          boardTop: 0,
+          boardThickness: 1.8,
+        };
+        boardMetrics.boardExtent = boardMetrics.cellSize * boardSize;
+        boardMetrics.boardMin = -boardMetrics.boardExtent / 2;
+        boardMetrics.boardMax = boardMetrics.boardExtent / 2;
 
-    function sharedAttribute(ids) {
-      for (let bit = 0; bit < 4; bit++) {
-        const mask = 1 << bit;
-        const allHave = ids.every((id) => (id & mask) === mask);
-        const noneHave = ids.every((id) => (id & mask) === 0);
-        if (allHave || noneHave) return true;
-      }
-      return false;
-    }
+        const pointer = new THREE.Vector2();
+        const boardPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -boardMetrics.boardTop);
 
-    function checkWin() {
-      const lines = [
-        [0, 1, 2, 3], [4, 5, 6, 7], [8, 9, 10, 11], [12, 13, 14, 15],
-        [0, 4, 8, 12], [1, 5, 9, 13], [2, 6, 10, 14], [3, 7, 11, 15],
-        [0, 5, 10, 15], [3, 6, 9, 12]
-      ];
-      for (const line of lines) {
-        const ids = line.map((i) => boardState[i]);
-        if (ids.every((v) => v !== null) && sharedAttribute(ids)) return { winner: currentPlayer, line };
-      }
-      const full = boardState.every((v) => v !== null);
-      return full ? { draw: true } : null;
-    }
+        let renderer;
+        let scene;
+        let camera;
+        let controls;
+        let raycaster;
+        let hoverOverlay;
+        let hoverCell = null;
+        const cellOverlays = [];
+        const placedMeshes = Array(totalCells).fill(null);
+        let ghostMesh = null;
+        let ghostPieceId = null;
 
-    function highlightLine(line) {
-      line.forEach((i) => {
-        const socket = sockets[i];
-        socket.material = socketHighlightMat.clone();
-        socket.material.emissiveIntensity = 0.6;
-      });
-    }
+        setup();
 
-    function showOverlay(title, desc) {
-      overlayTitle.textContent = title;
-      overlayDesc.textContent = desc;
-      overlay.classList.add('active');
-      gameOver = true;
-    }
-
-    function updateHUD() {
-      undoBtn.disabled = history.length === 0 || gameOver;
-      setPhaseText();
-    }
-
-    function switchPlayers() {
-      currentPlayer = currentPlayer === 'A' ? 'B' : 'A';
-      selectedPiece = null;
-      phase = 'select';
-    }
-
-    const raycaster = new THREE.Raycaster();
-    const pointer = new THREE.Vector2();
-
-    function onPointerMove(event) {
-      pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
-      pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
-    }
-
-    function animate() {
-      requestAnimationFrame(animate);
-      raycaster.setFromCamera(pointer, camera);
-
-      const hoverTargets = phase === 'select' ? Array.from(trayGroup.children) : sockets.filter((s) => !s.userData.occupied);
-      const intersects = raycaster.intersectObjects(hoverTargets, false);
-      hoverTargets.forEach((obj) => { obj.scale.set(1, 1, 1); if (obj.material && obj.material.emissive) obj.material.emissiveIntensity = 0.2; });
-      if (intersects.length > 0) {
-        const hit = intersects[0].object.parent?.userData?.type === 'piece' ? intersects[0].object.parent : intersects[0].object;
-        hit.scale.set(1.08, 1.08, 1.08);
-        if (hit.material && hit.material.emissive) hit.material.emissiveIntensity = 0.5;
-      }
-
-      renderer.render(scene, camera);
-    }
-
-    function handleSelection(mesh) {
-      if (!remainingPieces.has(mesh.userData.id) || gameOver) return;
-      saveHistory();
-      selectedPiece = mesh.userData.id;
-      phase = 'place';
-      selectedInfo.textContent = `Selected: ${bitLabel(selectedPiece)}`;
-      updateHUD();
-    }
-
-    function handlePlacement(socket) {
-      if (socket.userData.occupied || selectedPiece === null || gameOver) return;
-      saveHistory();
-      const mesh = pieceMeshes.get(selectedPiece);
-      remainingPieces.delete(selectedPiece);
-      boardState[socket.userData.index] = selectedPiece;
-      socket.userData.occupied = true;
-
-      trayGroup.remove(mesh);
-      boardGroup.add(mesh);
-      mesh.userData.inTray = false;
-      mesh.position.copy(socket.position);
-      mesh.position.y = socket.position.y + 0.35;
-      mesh.scale.set(1, 1, 1);
-      mesh.rotation.set(0, 0, 0);
-
-      const outcome = checkWin();
-      if (outcome?.winner) {
-        highlightLine(outcome.line);
-        showOverlay(`Player ${currentPlayer} wins!`, 'Four pieces share a common attribute in a line.');
-      } else if (outcome?.draw) {
-        showOverlay('Draw', 'All pieces placed with no shared attribute line.');
-      } else {
-        switchPlayers();
-      }
-      updateHUD();
-    }
-
-    function onPointerDown(event) {
-      if (gameOver) return;
-      pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
-      pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
-      raycaster.setFromCamera(pointer, camera);
-
-      if (phase === 'select') {
-        const intersects = raycaster.intersectObjects(trayGroup.children, true);
-        if (intersects.length > 0) {
-          const target = intersects[0].object.parent;
-          if (target?.userData?.type === 'piece') handleSelection(target);
+        function generatePieces() {
+          const combos = [];
+          for (let mask = 0; mask < 16; mask++) {
+            combos.push({
+              id: `piece-${mask}`,
+              tall: Boolean(mask & 1),
+              light: Boolean(mask & 2),
+              square: Boolean(mask & 4),
+              solid: Boolean(mask & 8),
+              used: false,
+            });
+          }
+          return combos;
         }
-      } else if (phase === 'place') {
-        const targets = sockets.filter((s) => !s.userData.occupied);
-        const intersects = raycaster.intersectObjects(targets, true);
-        if (intersects.length > 0) {
-          const socket = intersects[0].object;
-          handlePlacement(socket);
+
+        function setup() {
+          buildPiecePool();
+          initThreeScene();
+          attachEvents();
+          updateStatus();
+          animate();
         }
-      }
-    }
 
-    function onResize() {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    }
+        function buildPiecePool() {
+          piecePoolEl.innerHTML = "";
+          pieceNodes.clear();
+          state.pieces.forEach((piece) => {
+            const button = document.createElement("button");
+            button.className = "piece-token";
+            button.type = "button";
+            button.dataset.id = piece.id;
+            const preview = document.createElement("canvas");
+            preview.width = 120;
+            preview.height = 140;
+            button.appendChild(preview);
+            const label = document.createElement("span");
+            label.textContent = pieceLabel(piece);
+            button.appendChild(label);
+            renderPiece(preview.getContext("2d"), piece, {
+              centerX: preview.width / 2,
+              baseY: preview.height * 0.7,
+              scale: preview.width / 120,
+            });
+            button.addEventListener("click", () => handlePieceSelect(piece.id));
+            piecePoolEl.appendChild(button);
+            pieceNodes.set(piece.id, button);
+          });
+          updatePieceBadges();
+        }
 
-    undoBtn.addEventListener('click', () => {
-      if (history.length === 0) return;
-      const snapshot = history.pop();
-      restoreState(snapshot);
-    });
+        function pieceLabel(piece) {
+          return [
+            attributeLabels.tall[piece.tall ? 1 : 0],
+            attributeLabels.light[piece.light ? 1 : 0],
+          ].join(" · ");
+        }
 
-    restartBtn.addEventListener('click', resetGame);
-    playAgainBtn.addEventListener('click', resetGame);
+        function attachEvents() {
+          resetBtn.addEventListener("click", resetGame);
+          window.addEventListener("resize", handleResize);
+          renderer.domElement.addEventListener("pointermove", handlePointerMove);
+          renderer.domElement.addEventListener("pointerleave", handlePointerLeave);
+          renderer.domElement.addEventListener("click", handlePointerClick);
+        }
 
-    window.addEventListener('pointermove', onPointerMove);
-    window.addEventListener('pointerdown', onPointerDown);
-    window.addEventListener('resize', onResize);
+        function initThreeScene() {
+          renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+          renderer.setPixelRatio(window.devicePixelRatio || 1);
+          renderer.shadowMap.enabled = true;
+          renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-    createPieces();
-    placeTrayPieces();
-    updateHUD();
-    animate();
-  </script>
-</body>
+          scene = new THREE.Scene();
+          scene.fog = new THREE.Fog(0x020713, 80, 160);
+          raycaster = new THREE.Raycaster();
+
+          camera = new THREE.PerspectiveCamera(
+            42,
+            boardWrapper.clientWidth / boardWrapper.clientHeight,
+            0.1,
+            400,
+          );
+          camera.position.set(28, 34, 42);
+          camera.lookAt(0, boardMetrics.boardTop, 0);
+
+          controls = new OrbitControls(camera, renderer.domElement);
+          controls.enableDamping = true;
+          controls.dampingFactor = 0.08;
+          controls.enablePan = false;
+          controls.minDistance = 24;
+          controls.maxDistance = 70;
+          controls.minPolarAngle = Math.PI / 4;
+          controls.maxPolarAngle = Math.PI / 2.1;
+          controls.target.set(0, boardMetrics.boardTop, 0);
+          controls.update();
+
+          resizeRenderer();
+
+          const hemi = new THREE.HemisphereLight(0xfefaf4, 0x060b16, 0.7);
+          scene.add(hemi);
+
+          const dir = new THREE.DirectionalLight(0xffffff, 0.9);
+          dir.position.set(-32, 45, 28);
+          dir.castShadow = true;
+          dir.shadow.camera.near = 10;
+          dir.shadow.camera.far = 160;
+          dir.shadow.mapSize.set(2048, 2048);
+          scene.add(dir);
+
+          const fill = new THREE.DirectionalLight(0xffc995, 0.35);
+          fill.position.set(28, 28, -18);
+          scene.add(fill);
+
+          const ground = new THREE.Mesh(
+            new THREE.PlaneGeometry(250, 250),
+            new THREE.MeshStandardMaterial({ color: 0x03070f, roughness: 1, metalness: 0 }),
+          );
+          ground.rotation.x = -Math.PI / 2;
+          ground.position.y = -boardMetrics.boardThickness - 0.5;
+          ground.receiveShadow = true;
+          scene.add(ground);
+
+          buildBoardGeometry();
+        }
+
+        function buildBoardGeometry() {
+          const board = new THREE.Mesh(
+            new THREE.BoxGeometry(
+              boardMetrics.boardExtent + 2.6,
+              boardMetrics.boardThickness,
+              boardMetrics.boardExtent + 2.6,
+            ),
+            new THREE.MeshStandardMaterial({
+              color: 0x8b5b2a,
+              roughness: 0.55,
+              metalness: 0.05,
+            }),
+          );
+          board.position.y = -boardMetrics.boardThickness / 2;
+          board.castShadow = true;
+          board.receiveShadow = true;
+          scene.add(board);
+
+          const inset = new THREE.Mesh(
+            new THREE.BoxGeometry(boardMetrics.boardExtent, 0.3, boardMetrics.boardExtent),
+            new THREE.MeshStandardMaterial({
+              color: 0xc27b34,
+              roughness: 0.45,
+              metalness: 0.1,
+            }),
+          );
+          inset.position.y = 0.15;
+          inset.receiveShadow = true;
+          scene.add(inset);
+
+          const positions = [];
+          for (let i = 0; i <= boardSize; i++) {
+            const offset = boardMetrics.boardMin + i * boardMetrics.cellSize;
+            positions.push(boardMetrics.boardMin, 0, offset, boardMetrics.boardMax, 0, offset);
+            positions.push(offset, 0, boardMetrics.boardMin, offset, 0, boardMetrics.boardMax);
+          }
+          const gridGeo = new THREE.BufferGeometry();
+          gridGeo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+          const gridLines = new THREE.LineSegments(
+            gridGeo,
+            new THREE.LineBasicMaterial({ color: 0x3a1f0c, transparent: true, opacity: 0.6 }),
+          );
+          gridLines.position.y = 0.02;
+          scene.add(gridLines);
+
+          const padGeometry = new THREE.CircleGeometry(boardMetrics.cellSize * 0.38, 40);
+          const padMaterial = new THREE.MeshStandardMaterial({
+            color: 0x2d1810,
+            roughness: 0.8,
+            metalness: 0.05,
+          });
+          const rimGeometry = new THREE.RingGeometry(
+            boardMetrics.cellSize * 0.36,
+            boardMetrics.cellSize * 0.42,
+            48,
+          );
+          const rimMaterial = new THREE.MeshStandardMaterial({
+            color: 0xd4a574,
+            side: THREE.DoubleSide,
+            roughness: 0.4,
+            metalness: 0.2,
+          });
+
+          for (let idx = 0; idx < totalCells; idx++) {
+            const { x, z } = worldFromCell(idx);
+            const pad = new THREE.Mesh(padGeometry, padMaterial);
+            pad.rotation.x = -Math.PI / 2;
+            pad.position.set(x, boardMetrics.boardTop + 0.32, z);
+            pad.castShadow = false;
+            pad.receiveShadow = true;
+            scene.add(pad);
+
+            const rim = new THREE.Mesh(rimGeometry, rimMaterial);
+            rim.rotation.x = -Math.PI / 2;
+            rim.position.set(x, boardMetrics.boardTop + 0.33, z);
+            rim.castShadow = false;
+            rim.receiveShadow = false;
+            scene.add(rim);
+          }
+
+          const overlayHeight = boardMetrics.boardTop + 0.03;
+
+          hoverOverlay = new THREE.Mesh(
+            new THREE.PlaneGeometry(boardMetrics.cellSize * 0.95, boardMetrics.cellSize * 0.95),
+            new THREE.MeshBasicMaterial({
+              color: 0xffffff,
+              transparent: true,
+              opacity: 0.2,
+              depthWrite: false,
+              depthTest: false,
+            }),
+          );
+          hoverOverlay.rotation.x = -Math.PI / 2;
+          hoverOverlay.visible = false;
+          hoverOverlay.position.y = overlayHeight;
+          hoverOverlay.renderOrder = 2;
+          scene.add(hoverOverlay);
+
+          for (let idx = 0; idx < totalCells; idx++) {
+            const overlay = new THREE.Mesh(
+              new THREE.PlaneGeometry(boardMetrics.cellSize * 0.94, boardMetrics.cellSize * 0.94),
+              new THREE.MeshBasicMaterial({
+                color: 0x81c6ff,
+                transparent: true,
+                opacity: 0,
+                depthWrite: false,
+                depthTest: false,
+              }),
+            );
+            overlay.rotation.x = -Math.PI / 2;
+            const { x, z } = worldFromCell(idx);
+            overlay.position.set(x, overlayHeight - 0.005, z);
+            overlay.renderOrder = 1;
+            scene.add(overlay);
+            cellOverlays.push(overlay);
+          }
+        }
+
+        function handlePointerMove(event) {
+          if (!renderer) return;
+          const rect = renderer.domElement.getBoundingClientRect();
+          pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+          pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+          raycaster.setFromCamera(pointer, camera);
+          const intersection = new THREE.Vector3();
+          const hit = raycaster.ray.intersectPlane(boardPlane, intersection);
+          if (!hit) {
+            updateHoverCell(null);
+            return;
+          }
+          const idx = cellFromWorld(intersection.x, intersection.z);
+          updateHoverCell(idx);
+        }
+
+        function handlePointerLeave() {
+          updateHoverCell(null);
+        }
+
+        function handlePointerClick() {
+          if (state.phase !== "placePiece" || !state.selectedPieceId || hoverCell == null) {
+            return;
+          }
+          if (state.board[hoverCell]) return;
+          placePieceAt(hoverCell);
+        }
+
+        function updateHoverCell(next) {
+          let idx = next;
+          if (
+            state.phase !== "placePiece" ||
+            state.winner ||
+            state.draw ||
+            !state.selectedPieceId
+          ) {
+            idx = null;
+          } else if (idx != null && state.board[idx]) {
+            idx = null;
+          }
+          if (hoverCell === idx) {
+            if (idx == null && hoverOverlay) hoverOverlay.visible = false;
+            return;
+          }
+          hoverCell = idx;
+          if (idx == null) {
+            hoverOverlay.visible = false;
+            if (ghostMesh) ghostMesh.visible = false;
+            return;
+          }
+
+          const { x, z } = worldFromCell(idx);
+          hoverOverlay.visible = true;
+          hoverOverlay.position.set(x, hoverOverlay.position.y, z);
+          refreshGhostMesh();
+          if (ghostMesh) {
+            ghostMesh.visible = true;
+            ghostMesh.position.set(x, boardMetrics.boardTop + ghostMesh.userData.height / 2, z);
+          }
+        }
+
+        function handlePieceSelect(pieceId) {
+          if (state.phase !== "selectPiece" || state.winner || state.draw) return;
+          const piece = piecesById.get(pieceId);
+          if (!piece || piece.used) return;
+          state.selectedPieceId = pieceId;
+          state.phase = "placePiece";
+          state.activePlayer = 1 - state.activePlayer;
+          updatePieceBadges();
+          updateStatus();
+          refreshGhostMesh();
+          updateHoverCell(hoverCell);
+        }
+
+        function placePieceAt(idx) {
+          const pieceId = state.selectedPieceId;
+          if (!pieceId) return;
+          const piece = piecesById.get(pieceId);
+          if (!piece || piece.used) return;
+
+          state.board[idx] = pieceId;
+          piece.used = true;
+          state.selectedPieceId = null;
+          addPieceMesh(idx, piece);
+
+          const line = computeWinner();
+          if (line) {
+            state.winner = {
+              player: state.activePlayer,
+              attribute: line.attribute,
+              value: line.value,
+            };
+            state.winningLine = line.indices;
+            updateWinningHighlights(line.indices);
+          } else if (state.board.every(Boolean)) {
+            state.draw = true;
+            updateWinningHighlights(null);
+          } else {
+            state.phase = "selectPiece";
+            updateWinningHighlights(null);
+          }
+
+          updatePieceBadges();
+          updateStatus();
+          refreshGhostMesh();
+          updateHoverCell(null);
+        }
+
+        function updateWinningHighlights(indices) {
+          const target = new Set(indices || []);
+          cellOverlays.forEach((mesh, idx) => {
+            mesh.material.opacity = target.has(idx) ? 0.32 : 0;
+          });
+        }
+
+        function addPieceMesh(idx, piece) {
+          const mesh = createPieceMesh(piece);
+          const { x, z } = worldFromCell(idx);
+          mesh.position.set(x, boardMetrics.boardTop + mesh.userData.height / 2, z);
+          placedMeshes[idx] = mesh;
+          scene.add(mesh);
+        }
+
+        function clearPlacedMeshes() {
+          for (let i = 0; i < placedMeshes.length; i++) {
+            const mesh = placedMeshes[i];
+            if (!mesh) continue;
+            scene.remove(mesh);
+            disposeComposite(mesh);
+            placedMeshes[i] = null;
+          }
+        }
+
+        function refreshGhostMesh() {
+          if (
+            state.phase !== "placePiece" ||
+            state.winner ||
+            state.draw ||
+            !state.selectedPieceId
+          ) {
+            disposeGhostMesh();
+            return;
+          }
+          if (ghostMesh && ghostPieceId === state.selectedPieceId) {
+            return;
+          }
+          disposeGhostMesh();
+          const piece = piecesById.get(state.selectedPieceId);
+          if (!piece) return;
+          ghostMesh = createPieceMesh(piece, { ghost: true });
+          ghostMesh.visible = false;
+          ghostPieceId = piece.id;
+          scene.add(ghostMesh);
+        }
+
+        function disposeGhostMesh() {
+          if (!ghostMesh) return;
+          scene.remove(ghostMesh);
+          disposeComposite(ghostMesh);
+          ghostMesh = null;
+          ghostPieceId = null;
+        }
+
+        function computeWinner() {
+          for (const shape of lines) {
+            const pieces = shape.map((idx) => {
+              const id = state.board[idx];
+              return id ? piecesById.get(id) : null;
+            });
+            if (pieces.some((entry) => !entry)) continue;
+            const attrs = ["tall", "light", "square", "solid"];
+            for (const attr of attrs) {
+              const target = pieces[0][attr];
+              if (pieces.every((p) => p[attr] === target)) {
+                return { indices: shape.slice(), attribute: attr, value: target };
+              }
+            }
+          }
+          return null;
+        }
+
+        function updatePieceBadges() {
+          pieceNodes.forEach((node, id) => {
+            const piece = piecesById.get(id);
+            node.classList.toggle("used", Boolean(piece?.used));
+            node.classList.toggle(
+              "pending",
+              state.selectedPieceId === id && !piece?.used && state.phase === "placePiece",
+            );
+          });
+        }
+
+        function updateStatus() {
+          if (state.winner) {
+            const { player, attribute, value } = state.winner;
+            const attrName = attributeLabels[attribute][value ? 1 : 0];
+            statusEl.textContent = `${players[player]} wins with ${attrName}!`;
+            phaseEl.textContent = "Tap “Start New Game” to play again.";
+            return;
+          }
+
+          if (state.draw) {
+            statusEl.textContent = "All sixteen pieces are down — it is a draw.";
+            phaseEl.textContent = "Reset the board for another round.";
+            return;
+          }
+
+          if (state.phase === "selectPiece") {
+            const receiver = players[1 - state.activePlayer];
+            statusEl.textContent = `${players[state.activePlayer]}: Select a piece for ${receiver}.`;
+            phaseEl.textContent = "Tap any unused piece to hand it to your opponent.";
+          } else {
+            const piece = state.selectedPieceId ? piecesById.get(state.selectedPieceId) : null;
+            statusEl.textContent = `${players[state.activePlayer]}: Place the highlighted piece.`;
+            phaseEl.textContent = piece
+              ? describePiece(piece)
+              : "Awaiting a piece selection.";
+          }
+        }
+
+        function describePiece(piece) {
+          return [
+            attributeLabels.tall[piece.tall ? 1 : 0],
+            attributeLabels.light[piece.light ? 1 : 0],
+            attributeLabels.square[piece.square ? 1 : 0],
+            attributeLabels.solid[piece.solid ? 1 : 0],
+          ].join(" · ");
+        }
+
+        function worldFromCell(idx) {
+          const row = Math.floor(idx / boardSize);
+          const col = idx % boardSize;
+          const start = boardMetrics.boardMin + boardMetrics.cellSize / 2;
+          const x = start + col * boardMetrics.cellSize;
+          const z = start + row * boardMetrics.cellSize;
+          return { x, z };
+        }
+
+        function cellFromWorld(x, z) {
+          const epsilon = 1e-4;
+          if (
+            x < boardMetrics.boardMin - epsilon ||
+            x > boardMetrics.boardMax + epsilon ||
+            z < boardMetrics.boardMin - epsilon ||
+            z > boardMetrics.boardMax + epsilon
+          ) {
+            return null;
+          }
+          const adjustedX = Math.min(Math.max(x, boardMetrics.boardMin + epsilon), boardMetrics.boardMax - epsilon);
+          const adjustedZ = Math.min(Math.max(z, boardMetrics.boardMin + epsilon), boardMetrics.boardMax - epsilon);
+          const col = Math.floor((adjustedX - boardMetrics.boardMin) / boardMetrics.cellSize);
+          const row = Math.floor((adjustedZ - boardMetrics.boardMin) / boardMetrics.cellSize);
+          if (col < 0 || col >= boardSize || row < 0 || row >= boardSize) return null;
+          return row * boardSize + col;
+        }
+
+        function createPieceMesh(piece, { ghost = false } = {}) {
+          const height = piece.tall ? 15 : 11;
+          const roundRadius = boardMetrics.cellSize * 0.35;
+          const squareSize = boardMetrics.cellSize * 0.72;
+          const group = new THREE.Group();
+
+          const baseMaterial = new THREE.MeshStandardMaterial({
+            color: piece.light ? 0xf3d8ad : 0x6b3c22,
+            roughness: 0.45,
+            metalness: 0.08,
+          });
+          const capMaterial = new THREE.MeshStandardMaterial({
+            color: piece.light ? 0xfef1d9 : 0x4a2312,
+            roughness: 0.35,
+            metalness: 0.1,
+          });
+          const hollowMaterial = new THREE.MeshStandardMaterial({
+            color: piece.light ? 0xb2733e : 0x1a0804,
+            roughness: 0.85,
+            metalness: 0.05,
+          });
+
+          if (ghost) {
+            [baseMaterial, capMaterial, hollowMaterial].forEach((mat) => {
+              mat.transparent = true;
+              mat.opacity = 0.46;
+              mat.depthWrite = false;
+            });
+          }
+
+          let body;
+          const wallThickness = piece.square ? squareSize * 0.2 : roundRadius * 0.35;
+
+          if (piece.solid) {
+            if (piece.square) {
+              body = new THREE.Mesh(
+                new THREE.BoxGeometry(squareSize, height, squareSize),
+                baseMaterial,
+              );
+            } else {
+              body = new THREE.Mesh(
+                new THREE.CylinderGeometry(roundRadius, roundRadius, height, 32),
+                baseMaterial,
+              );
+            }
+            body.castShadow = true;
+            body.receiveShadow = true;
+            group.add(body);
+          } else {
+            // Hollow pieces use cup-shaped geometry.
+            if (piece.square) {
+              const outerSize = squareSize / 2;
+              const innerSize = outerSize - wallThickness;
+              const shape = new THREE.Shape();
+              shape.moveTo(-outerSize, -outerSize);
+              shape.lineTo(outerSize, -outerSize);
+              shape.lineTo(outerSize, outerSize);
+              shape.lineTo(-outerSize, outerSize);
+              shape.closePath();
+              const hole = new THREE.Path();
+              hole.moveTo(-innerSize, -innerSize);
+              hole.lineTo(-innerSize, innerSize);
+              hole.lineTo(innerSize, innerSize);
+              hole.lineTo(innerSize, -innerSize);
+              hole.closePath();
+              shape.holes.push(hole);
+              const extrudeSettings = { depth: height, bevelEnabled: false };
+              const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+              geometry.rotateX(-Math.PI / 2);
+              geometry.translate(0, -height / 2, 0);
+              body = new THREE.Mesh(geometry, baseMaterial);
+            } else {
+              // Round hollow piece using LatheGeometry for a cup profile.
+              const innerRadius = roundRadius - wallThickness;
+              const bottomThickness = wallThickness * 0.8;
+              const points = [
+                new THREE.Vector2(innerRadius, bottomThickness),
+                new THREE.Vector2(innerRadius, height),
+                new THREE.Vector2(roundRadius, height),
+                new THREE.Vector2(roundRadius, 0),
+                new THREE.Vector2(0, 0),
+                new THREE.Vector2(0, bottomThickness),
+                new THREE.Vector2(innerRadius, bottomThickness),
+              ];
+              const geometry = new THREE.LatheGeometry(points, 32);
+              geometry.translate(0, -height / 2, 0);
+              body = new THREE.Mesh(geometry, baseMaterial);
+            }
+            body.castShadow = true;
+            body.receiveShadow = true;
+            group.add(body);
+          }
+
+          let cap;
+          const capHeight = height * 0.12;
+          if (piece.solid) {
+            if (piece.square) {
+              cap = new THREE.Mesh(
+                new THREE.BoxGeometry(squareSize * 0.9, capHeight, squareSize * 0.9),
+                capMaterial,
+              );
+            } else {
+              cap = new THREE.Mesh(
+                new THREE.CylinderGeometry(roundRadius * 0.95, roundRadius * 0.95, capHeight, 32),
+                capMaterial,
+              );
+            }
+          } else {
+            // Hollow pieces get a ring-shaped cap with a hole.
+            const innerRadius = roundRadius - wallThickness;
+            if (piece.square) {
+              const outerCapSize = squareSize * 0.9 / 2;
+              const innerCapSize = (squareSize / 2 - wallThickness) * 0.95;
+              const capShape = new THREE.Shape();
+              capShape.moveTo(-outerCapSize, -outerCapSize);
+              capShape.lineTo(outerCapSize, -outerCapSize);
+              capShape.lineTo(outerCapSize, outerCapSize);
+              capShape.lineTo(-outerCapSize, outerCapSize);
+              capShape.closePath();
+              const capHole = new THREE.Path();
+              capHole.moveTo(-innerCapSize, -innerCapSize);
+              capHole.lineTo(-innerCapSize, innerCapSize);
+              capHole.lineTo(innerCapSize, innerCapSize);
+              capHole.lineTo(innerCapSize, -innerCapSize);
+              capHole.closePath();
+              capShape.holes.push(capHole);
+              const capGeometry = new THREE.ExtrudeGeometry(capShape, { depth: capHeight, bevelEnabled: false });
+              capGeometry.rotateX(-Math.PI / 2);
+              capGeometry.translate(0, -capHeight / 2, 0);
+              cap = new THREE.Mesh(capGeometry, capMaterial);
+            } else {
+              cap = new THREE.Mesh(
+                new THREE.RingGeometry(innerRadius * 0.95, roundRadius * 0.95, 32),
+                capMaterial,
+              );
+              cap.rotation.x = -Math.PI / 2;
+            }
+          }
+          cap.position.y = height / 2;
+          cap.castShadow = true;
+          cap.receiveShadow = true;
+          group.add(cap);
+
+          group.userData.height = height;
+          group.userData.pieceId = piece.id;
+          return group;
+        }
+
+        function disposeComposite(node) {
+          node.traverse((child) => {
+            if (child.isMesh) {
+              child.geometry.dispose();
+              const mats = Array.isArray(child.material) ? child.material : [child.material];
+              mats.forEach((mat) => mat?.dispose?.());
+            }
+          });
+        }
+
+        function resizeRenderer() {
+          const width = boardWrapper.clientWidth;
+          const height = boardWrapper.clientHeight;
+          renderer.setSize(width, height, false);
+          camera.aspect = width / height;
+          camera.updateProjectionMatrix();
+        }
+
+        function handleResize() {
+          if (!renderer) return;
+          resizeRenderer();
+        }
+
+        function animate() {
+          requestAnimationFrame(animate);
+          controls?.update();
+          renderer.render(scene, camera);
+        }
+
+        function renderPiece(context, piece, { centerX, baseY, scale, ghost = false }) {
+          if (!piece) return;
+          const bodyHeight = (piece.tall ? 90 : 65) * scale;
+          const radius = 27 * scale;
+          const squareHalf = 30 * scale;
+          const topRadius = radius * (piece.square ? 0.92 : 1);
+          const bodyColor = piece.light ? "#f7d9b6" : "#6a3a24";
+          const shadowColor = piece.light ? "rgba(120, 78, 50, 0.55)" : "rgba(0, 0, 0, 0.65)";
+          const highlight = piece.light ? "#fff8e9" : "#c9894f";
+          const opacity = ghost ? 0.4 : 1;
+
+          context.save();
+          context.globalAlpha = opacity;
+          context.translate(centerX, baseY);
+
+          context.fillStyle = "rgba(0,0,0,0.35)";
+          context.beginPath();
+          context.ellipse(0, 10, radius * 0.9, 10 * scale, 0, 0, Math.PI * 2);
+          context.fill();
+
+          const gradient = context.createLinearGradient(0, -bodyHeight, 0, 0);
+          gradient.addColorStop(0, highlight);
+          gradient.addColorStop(0.5, bodyColor);
+          gradient.addColorStop(1, piece.light ? "#b37232" : "#3e1f10");
+
+          context.fillStyle = gradient;
+          context.strokeStyle = shadowColor;
+          context.lineWidth = 2 * scale;
+          if (piece.square) {
+            roundedRect(
+              context,
+              -squareHalf,
+              -bodyHeight,
+              squareHalf * 2,
+              bodyHeight,
+              squareHalf * 0.15,
+            );
+            context.fill();
+            context.stroke();
+          } else {
+            roundedRect(
+              context,
+              -radius,
+              -bodyHeight,
+              radius * 2,
+              bodyHeight,
+              radius * 0.3,
+            );
+            context.fill();
+            context.stroke();
+          }
+
+          if (piece.square) {
+            const topHeight = 10 * scale;
+            const topWidth = squareHalf * 2;
+            const topRadiusSq = squareHalf * 0.2;
+            context.fillStyle = piece.light ? "#fdf1d9" : "#82411d";
+            roundedRect(
+              context,
+              -topWidth / 2,
+              -bodyHeight - topHeight / 2,
+              topWidth,
+              topHeight,
+              topRadiusSq,
+            );
+            context.fill();
+            context.stroke();
+
+            if (!piece.solid) {
+              context.fillStyle = piece.light ? "#d5a17a" : "#3d160b";
+              roundedRect(
+                context,
+                -topWidth * 0.35,
+                -bodyHeight - (topHeight * 0.4) / 2,
+                topWidth * 0.7,
+                topHeight * 0.4,
+                topRadiusSq * 0.5,
+              );
+              context.fill();
+            }
+          } else {
+            context.fillStyle = piece.light ? "#fdf1d9" : "#82411d";
+            context.beginPath();
+            context.ellipse(0, -bodyHeight, topRadius, 8 * scale, 0, 0, Math.PI * 2);
+            context.fill();
+            context.stroke();
+
+            if (!piece.solid) {
+              context.fillStyle = piece.light ? "#d5a17a" : "#3d160b";
+              context.beginPath();
+              context.ellipse(0, -bodyHeight, topRadius * 0.55, 4 * scale, 0, 0, Math.PI * 2);
+              context.fill();
+            }
+          }
+
+          context.restore();
+        }
+
+        function roundedRect(context, x, y, width, height, radius) {
+          const r = Math.min(radius, width / 2, height / 2);
+          context.beginPath();
+          context.moveTo(x + r, y);
+          context.lineTo(x + width - r, y);
+          context.quadraticCurveTo(x + width, y, x + width, y + r);
+          context.lineTo(x + width, y + height - r);
+          context.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+          context.lineTo(x + r, y + height);
+          context.quadraticCurveTo(x, y + height, x, y + height - r);
+          context.lineTo(x, y + r);
+          context.quadraticCurveTo(x, y, x + r, y);
+          context.closePath();
+        }
+
+        function resetGame() {
+          state.board.fill(null);
+          state.pieces.forEach((piece) => {
+            piece.used = false;
+          });
+          state.selectedPieceId = null;
+          state.phase = "selectPiece";
+          state.activePlayer = 0;
+          state.winner = null;
+          state.draw = false;
+          state.winningLine = null;
+          updatePieceBadges();
+          updateStatus();
+          updateWinningHighlights(null);
+          clearPlacedMeshes();
+          disposeGhostMesh();
+          updateHoverCell(null);
+        }
+      })();
+    </script>
+  </body>
 </html>
